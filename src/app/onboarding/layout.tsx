@@ -19,8 +19,8 @@ export default async function OnboardingLayout({
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
         <div className="mx-auto flex h-14 max-w-5xl items-center px-4">
-          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-            Set up your profile
+          <h1 className="text-lg font-black tracking-tighter text-zinc-900 dark:text-zinc-50">
+            RECOMMENDR
           </h1>
         </div>
       </header>
