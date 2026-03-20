@@ -24,7 +24,8 @@ export async function GET(
     const results = await searchByCategory(category, query);
     return NextResponse.json({ results: results.slice(0, 10) });
   } catch (err) {
-    console.error('Search error:', err);
-    return NextResponse.json({ error: 'Search failed' }, { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('Search error:', category, query, message);
+    return NextResponse.json({ error: `Search failed: ${message}` }, { status: 500 });
   }
 }
