@@ -22,6 +22,7 @@ async function getAccessToken(): Promise<string> {
       Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
     },
     body: 'grant_type=client_credentials',
+    cache: 'no-store',
   });
 
   if (!res.ok) {
@@ -46,7 +47,7 @@ async function spotifyFetch<T>(path: string, params: Record<string, string> = {}
 
   const res = await fetch(url.toString(), {
     headers: { Authorization: `Bearer ${token}` },
-    next: { revalidate: 86400 },
+    cache: 'no-store',
   });
 
   if (!res.ok) {
