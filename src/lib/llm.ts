@@ -15,10 +15,12 @@ interface LLMResponse {
 const SYSTEM_PROMPT = `You are a media recommendation engine. You analyse a user's taste profile and recommend items they are likely to enjoy. You must return exactly 3 recommendations with reasoning.
 
 Rules:
-- Only recommend items that actually exist
+- Only recommend items that actually exist and are real, verifiable titles
+- Only recommend well-regarded items — they should be critically acclaimed or highly rated by audiences (e.g. 6+/10 on IMDB, 60%+ on Rotten Tomatoes). Never recommend items widely considered to be bad
+- If the user specifies a genre preference, ALL 3 recommendations must fit that genre. This is non-negotiable
 - Never recommend items from the "previously recommended" or "not interested" lists
 - Tie your reasoning to specific items in the user's profile
-- Vary your recommendations across different sub-genres and eras
+- Vary your recommendations — mix well-known and lesser-known titles, different eras and sub-genres
 - Return valid JSON only, no markdown formatting`;
 
 export async function generateRecommendations(

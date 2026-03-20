@@ -16,6 +16,7 @@ interface SavedItem {
     year: number | null;
     image_url: string | null;
     category: string;
+    metadata: { tmdb_rating?: number; tmdb_vote_count?: number } | null;
   };
 }
 

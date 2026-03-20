@@ -17,6 +17,7 @@ interface RecommendationItem {
     year: number | null;
     image_url: string | null;
     category: string;
+    metadata: { tmdb_rating?: number; tmdb_vote_count?: number } | null;
   };
 }
 
@@ -102,18 +103,21 @@ export function RecommendationCard({
               <p className="mt-0.5 text-sm text-zinc-500">{item.creator}</p>
             )}
 
-            {item.genres.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1">
-                {item.genres.slice(0, 3).map((genre) => (
-                  <span
-                    key={genre}
-                    className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
-                  >
-                    {genre}
-                  </span>
-                ))}
-              </div>
-            )}
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {item.metadata?.tmdb_rating != null && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                  ★ {item.metadata.tmdb_rating.toFixed(1)}
+                </span>
+              )}
+              {item.genres.slice(0, 3).map((genre) => (
+                <span
+                  key={genre}
+                  className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                >
+                  {genre}
+                </span>
+              ))}
+            </div>
 
             {reason && (
               <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">

@@ -8,6 +8,8 @@ interface TMDBMovie {
   poster_path: string | null;
   release_date: string;
   genre_ids: number[];
+  vote_average: number;
+  vote_count: number;
 }
 
 interface TMDBTVShow {
@@ -17,6 +19,8 @@ interface TMDBTVShow {
   poster_path: string | null;
   first_air_date: string;
   genre_ids: number[];
+  vote_average: number;
+  vote_count: number;
 }
 
 interface TMDBMovieDetails {
@@ -26,6 +30,8 @@ interface TMDBMovieDetails {
   poster_path: string | null;
   release_date: string;
   genres: { id: number; name: string }[];
+  vote_average: number;
+  vote_count: number;
   credits?: {
     crew: { job: string; name: string }[];
   };
@@ -40,9 +46,11 @@ interface TMDBTVDetails {
   genres: { id: number; name: string }[];
   number_of_seasons: number;
   created_by: { name: string }[];
+  vote_average: number;
+  vote_count: number;
 }
 
-const MOVIE_GENRE_MAP: Record<number, string> = {
+export const MOVIE_GENRE_MAP: Record<number, string> = {
   28: 'Action', 12: 'Adventure', 16: 'Animation', 35: 'Comedy',
   80: 'Crime', 99: 'Documentary', 18: 'Drama', 10751: 'Family',
   14: 'Fantasy', 36: 'History', 27: 'Horror', 10402: 'Music',
@@ -50,13 +58,18 @@ const MOVIE_GENRE_MAP: Record<number, string> = {
   10770: 'TV Movie', 53: 'Thriller', 10752: 'War', 37: 'Western',
 };
 
-const TV_GENRE_MAP: Record<number, string> = {
+export const TV_GENRE_MAP: Record<number, string> = {
   10759: 'Action & Adventure', 16: 'Animation', 35: 'Comedy',
   80: 'Crime', 99: 'Documentary', 18: 'Drama', 10751: 'Family',
   10762: 'Kids', 9648: 'Mystery', 10763: 'News', 10764: 'Reality',
   10765: 'Sci-Fi & Fantasy', 10766: 'Soap', 10767: 'Talk',
   10768: 'War & Politics', 37: 'Western',
 };
+
+// Minimum TMDB rating to recommend (out of 10)
+export const MIN_RATING_THRESHOLD = 6.0;
+// Minimum number of votes for rating to be meaningful
+export const MIN_VOTE_COUNT = 50;
 
 function getApiKey() {
   const key = process.env.TMDB_API_KEY;
@@ -80,6 +93,36 @@ async function tmdbFetch<T>(path: string, params: Record<string, string> = {}): 
 
 export function getImageUrl(path: string | null): string | null {
   return path ? `${TMDB_IMAGE_BASE}${path}` : null;
+}
+
+// --- Genre lists ---
+
+export async function getMovieGenres(): Promise<{ id: number; name: string }[]> {
+  const data = await tmdbFetch<{ genres: { id: number; name: string }[] }>(
+    '/genre/movie/list'
+  );
+  return data.genres;
+}
+
+export async function getTVGenres(): Promise<{ id: number; name: string }[]> {
+  const data = await tmdbFetch<{ genres: { id: number; name: string }[] }>(
+    '/genre/tv/list'
+  );
+  return data.genres;
+}
+
+export async function getGenresForCategory(category: string): Promise<string[]> {
+  switch (category) {
+    case 'movies':
+      return Object.values(MOVIE_GENRE_MAP).filter((g) => g !== 'Documentary' && g !== 'TV Movie');
+    case 'tv_shows':
+      return Object.values(TV_GENRE_MAP).filter((g) => g !== 'News' && g !== 'Soap');
+    case 'documentaries':
+      // Documentaries have subject-based genres
+      return ['Nature', 'Science', 'History', 'Crime', 'Music', 'Sports', 'Politics', 'Social', 'Technology', 'Biography'];
+    default:
+      return [];
+  }
 }
 
 // --- Movies ---
@@ -124,6 +167,8 @@ export async function getMovieDetails(tmdbId: number) {
     genres: data.genres.map((g) => g.name),
     year: data.release_date ? parseInt(data.release_date.slice(0, 4)) : null,
     image_url: getImageUrl(data.poster_path),
+    rating: data.vote_average,
+    vote_count: data.vote_count,
   };
 }
 
@@ -138,6 +183,8 @@ function mapMovie(m: TMDBMovie) {
     year: m.release_date ? parseInt(m.release_date.slice(0, 4)) : null,
     image_url: getImageUrl(m.poster_path),
     creator: null,
+    rating: m.vote_average,
+    vote_count: m.vote_count,
   };
 }
 
@@ -181,6 +228,8 @@ export async function getTVShowDetails(tmdbId: number) {
     year: data.first_air_date ? parseInt(data.first_air_date.slice(0, 4)) : null,
     image_url: getImageUrl(data.poster_path),
     metadata: { number_of_seasons: data.number_of_seasons },
+    rating: data.vote_average,
+    vote_count: data.vote_count,
   };
 }
 
@@ -195,6 +244,8 @@ function mapTVShow(t: TMDBTVShow) {
     year: t.first_air_date ? parseInt(t.first_air_date.slice(0, 4)) : null,
     image_url: getImageUrl(t.poster_path),
     creator: null,
+    rating: t.vote_average,
+    vote_count: t.vote_count,
   };
 }
 
@@ -230,6 +281,8 @@ export type MediaItemData = {
   genres: string[];
   year: number | null;
   image_url: string | null;
+  rating: number;
+  vote_count: number;
   metadata?: Record<string, unknown>;
 };
 

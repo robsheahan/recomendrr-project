@@ -24,12 +24,15 @@ interface RecommendationItem {
     year: number | null;
     image_url: string | null;
     category: string;
+    metadata: { tmdb_rating?: number; tmdb_vote_count?: number } | null;
   };
 }
 
 export function RecommendationGenerator() {
   const [categories, setCategories] = useState<UserCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<MediaCategory | null>(null);
+  const [genres, setGenres] = useState<string[]>([]);
+  const [selectedGenre, setSelectedGenre] = useState<string>('');
   const [recommendations, setRecommendations] = useState<RecommendationItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +53,16 @@ export function RecommendationGenerator() {
       });
   }, []);
 
+  // Fetch genres when category changes
+  useEffect(() => {
+    if (!selectedCategory) return;
+    setSelectedGenre('');
+    fetch(`/api/genres?category=${selectedCategory}`)
+      .then((res) => res.json())
+      .then((data) => setGenres(data.genres || []))
+      .catch(() => setGenres([]));
+  }, [selectedCategory]);
+
   async function handleGenerate() {
     if (!selectedCategory) return;
     setLoading(true);
@@ -60,7 +73,10 @@ export function RecommendationGenerator() {
       const res = await fetch('/api/recommendations/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category: selectedCategory }),
+        body: JSON.stringify({
+          category: selectedCategory,
+          genre: selectedGenre || null,
+        }),
       });
 
       const data = await res.json();
@@ -99,7 +115,7 @@ export function RecommendationGenerator() {
 
   return (
     <div className="space-y-6">
-      {/* Category selector + generate button */}
+      {/* Category + Genre selector + generate button */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
         <div className="flex-1">
           <label className="mb-1.5 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
@@ -113,6 +129,25 @@ export function RecommendationGenerator() {
             {categories.map((c) => (
               <option key={c.category} value={c.category}>
                 {CATEGORY_ICONS[c.category]} {CATEGORY_LABELS[c.category]}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex-1">
+          <label className="mb-1.5 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            Genre
+            <span className="ml-1 font-normal text-zinc-400">(optional)</span>
+          </label>
+          <select
+            value={selectedGenre}
+            onChange={(e) => setSelectedGenre(e.target.value)}
+            className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+          >
+            <option value="">Any genre</option>
+            {genres.map((genre) => (
+              <option key={genre} value={genre}>
+                {genre}
               </option>
             ))}
           </select>
@@ -158,6 +193,11 @@ export function RecommendationGenerator() {
         <div className="space-y-4">
           <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
             Recommended for you
+            {selectedGenre && (
+              <span className="ml-1 font-normal text-zinc-500">
+                in {selectedGenre}
+              </span>
+            )}
           </h3>
           {recommendations.map((rec) => (
             <RecommendationCard

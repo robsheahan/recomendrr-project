@@ -2,6 +2,7 @@ import { Item, Rating } from '@/types/database';
 
 export interface TasteProfile {
   category: string;
+  genre: string | null;
   highlyRated: { title: string; score: number; year: number | null; genres: string[] }[];
   moderatelyRated: { title: string; score: number; year: number | null; genres: string[] }[];
   lowRated: { title: string; score: number; year: number | null; genres: string[] }[];
@@ -13,7 +14,8 @@ export function buildTasteProfile(
   ratings: (Rating & { item: Item })[],
   notInterestedTitles: string[],
   previouslyRecommendedTitles: string[],
-  category: string
+  category: string,
+  genre: string | null = null
 ): TasteProfile {
   const categoryRatings = ratings.filter((r) => r.item.category === category);
 
@@ -26,6 +28,7 @@ export function buildTasteProfile(
 
   return {
     category,
+    genre,
     highlyRated: categoryRatings.filter((r) => r.score >= 4).map(mapRating),
     moderatelyRated: categoryRatings.filter((r) => r.score === 3).map(mapRating),
     lowRated: categoryRatings.filter((r) => r.score <= 2).map(mapRating),
@@ -49,6 +52,10 @@ export function formatTasteProfileForLLM(profile: TasteProfile): string {
   const lines: string[] = [];
 
   lines.push(`Here is my taste profile for ${label}:\n`);
+
+  if (profile.genre) {
+    lines.push(`GENRE PREFERENCE: I'm currently in the mood for ${profile.genre}. All 3 recommendations MUST be in or closely related to the ${profile.genre} genre.\n`);
+  }
 
   if (profile.highlyRated.length > 0) {
     lines.push('HIGHLY RATED (4-5 stars):');
@@ -96,7 +103,8 @@ export function formatTasteProfileForLLM(profile: TasteProfile): string {
     lines.push('');
   }
 
-  lines.push(`Based on this profile, recommend 3 ${label} I would enjoy.`);
+  const genreClause = profile.genre ? ` in the ${profile.genre} genre` : '';
+  lines.push(`Based on this profile, recommend 3 ${label}${genreClause} I would enjoy.`);
   lines.push('For each recommendation, provide:');
   lines.push('1. Title and year');
   lines.push('2. A brief reason tied to my specific taste profile');

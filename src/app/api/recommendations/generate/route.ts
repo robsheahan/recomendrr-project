@@ -4,6 +4,7 @@ import { buildTasteProfile } from '@/lib/taste-profile';
 import { generateRecommendations } from '@/lib/llm';
 import { searchByCategory } from '@/lib/tmdb';
 import { FREE_TIER_MONTHLY_LIMIT, COOLDOWN_DAYS, MAX_RECOMMENDATION_COUNT } from '@/lib/constants';
+import { MIN_RATING_THRESHOLD, MIN_VOTE_COUNT } from '@/lib/tmdb';
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -13,7 +14,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { category } = await request.json();
+  const { category, genre } = await request.json();
 
   if (!category) {
     return NextResponse.json({ error: 'Category is required' }, { status: 400 });
@@ -96,7 +97,8 @@ export async function POST(request: NextRequest) {
     ratingsWithItems,
     notInterestedTitles,
     allExcluded,
-    category
+    category,
+    genre || null
   );
 
   // Generate recommendations via LLM
@@ -130,6 +132,14 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
+      // Quality gate: skip items with low TMDB ratings
+      if (
+        match.vote_count >= MIN_VOTE_COUNT &&
+        match.rating < MIN_RATING_THRESHOLD
+      ) {
+        continue;
+      }
+
       // Upsert item
       const { data: existingItem } = await supabase
         .from('items')
@@ -156,7 +166,11 @@ export async function POST(request: NextRequest) {
             genres: match.genres || [],
             year: match.year,
             image_url: match.image_url,
-            metadata: match.metadata || null,
+            metadata: {
+              ...(match.metadata || {}),
+              tmdb_rating: match.rating,
+              tmdb_vote_count: match.vote_count,
+            },
           })
           .select('id')
           .single();
