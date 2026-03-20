@@ -35,7 +35,6 @@ export default function CategoryOnboardingPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<OnboardingItem[]>([]);
   const [searching, setSearching] = useState(false);
-  const [showSearch, setShowSearch] = useState(false);
   const searchDebounce = useRef<NodeJS.Timeout>(undefined);
 
   const categoryLabel = CATEGORY_LABELS[category] || category;
@@ -193,45 +192,30 @@ export default function CategoryOnboardingPage() {
         </p>
       </div>
 
-      {/* Search / Add your own */}
-      <div>
-        {showSearch ? (
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={`Search for a ${categoryLabel.toLowerCase().replace(/s$/, '')}...`}
-                  autoFocus
-                  className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 pr-8 text-sm focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => {
-                      setSearchQuery('');
-                      setSearchResults([]);
-                    }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-                      <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-              <button
-                onClick={() => {
-                  setShowSearch(false);
-                  setSearchQuery('');
-                  setSearchResults([]);
-                }}
-                className="rounded-lg px-3 py-2 text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-              >
-                Cancel
-              </button>
-            </div>
+      {/* Search */}
+      <div className="space-y-2">
+        <div className="relative">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={`Search for a ${categoryLabel.toLowerCase().replace(/s$/, '')}...`}
+            className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 pr-8 text-sm focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setSearchResults([]);
+              }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
+              </svg>
+            </button>
+          )}
+        </div>
 
             {searching && (
               <p className="text-center text-xs text-zinc-500">Searching...</p>
@@ -284,19 +268,10 @@ export default function CategoryOnboardingPage() {
               </div>
             )}
 
-            {searchQuery.length >= 2 && !searching && searchResults.length === 0 && (
-              <p className="text-center text-xs text-zinc-500">
-                No results found
-              </p>
-            )}
-          </div>
-        ) : (
-          <button
-            onClick={() => setShowSearch(true)}
-            className="w-full rounded-lg border border-dashed border-zinc-300 py-2.5 text-sm text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-700 dark:hover:border-zinc-600 dark:hover:text-zinc-300"
-          >
-            + Add your own
-          </button>
+        {searchQuery.length >= 2 && !searching && searchResults.length === 0 && (
+          <p className="text-center text-xs text-zinc-500">
+            No results found
+          </p>
         )}
       </div>
 
