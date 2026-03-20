@@ -24,12 +24,13 @@ export default function CategoryOnboardingPage() {
   const category = params.category as MediaCategory;
 
   const [items, setItems] = useState<OnboardingItem[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [ratingsCount, setRatingsCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [rating, setRating] = useState(false);
   const [page, setPage] = useState(1);
+  const [ratingItem, setRatingItem] = useState<OnboardingItem | null>(null);
   const [hoveredStar, setHoveredStar] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+  const [ratedIds, setRatedIds] = useState<Set<string>>(new Set());
 
   const categoryLabel = CATEGORY_LABELS[category] || category;
 
@@ -40,7 +41,13 @@ export default function CategoryOnboardingPage() {
       );
       const data = await res.json();
       if (data.items) {
-        setItems((prev) => [...prev, ...data.items]);
+        setItems((prev) => {
+          const existingIds = new Set(prev.map((i) => i.external_id));
+          const newItems = data.items.filter(
+            (i: OnboardingItem) => !existingIds.has(i.external_id)
+          );
+          return [...prev, ...newItems];
+        });
       }
     } catch (err) {
       console.error('Failed to fetch items:', err);
@@ -50,7 +57,6 @@ export default function CategoryOnboardingPage() {
   }, [category]);
 
   useEffect(() => {
-    // Get current progress
     fetch('/api/onboarding/progress')
       .then((res) => res.json())
       .then((data) => {
@@ -60,7 +66,6 @@ export default function CategoryOnboardingPage() {
         if (cat) {
           setRatingsCount(cat.ratingsCount);
           if (cat.onboarding_complete) {
-            // This category is done, go to next or dashboard
             if (data.nextCategory) {
               router.replace(`/onboarding/${data.nextCategory}`);
             } else {
@@ -74,26 +79,26 @@ export default function CategoryOnboardingPage() {
     fetchItems(1);
   }, [category, fetchItems, router]);
 
-  const currentItem = items[currentIndex];
-
-  async function handleRate(score: number) {
-    if (!currentItem || rating) return;
-    setRating(true);
+  async function handleRate(item: OnboardingItem, score: number) {
+    if (submitting) return;
+    setSubmitting(true);
 
     try {
       const res = await fetch('/api/onboarding/rate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ item: currentItem, score }),
+        body: JSON.stringify({ item, score }),
       });
 
       const data = await res.json();
 
       if (data.success) {
         setRatingsCount(data.ratingsCount);
+        setRatedIds((prev) => new Set(prev).add(item.external_id));
+        setRatingItem(null);
+        setHoveredStar(0);
 
         if (data.categoryComplete) {
-          // Check if there's a next category
           const progressRes = await fetch('/api/onboarding/progress');
           const progress = await progressRes.json();
 
@@ -102,35 +107,23 @@ export default function CategoryOnboardingPage() {
           } else if (progress.nextCategory) {
             router.push(`/onboarding/${progress.nextCategory}`);
           }
-          return;
         }
-
-        moveToNext();
       }
     } catch (err) {
       console.error('Failed to rate:', err);
     } finally {
-      setRating(false);
+      setSubmitting(false);
     }
   }
 
-  function handleSkip() {
-    moveToNext();
+  function handleLoadMore() {
+    const nextPage = page + 1;
+    setPage(nextPage);
+    fetchItems(nextPage);
   }
 
-  function moveToNext() {
-    const nextIndex = currentIndex + 1;
-
-    // If we're running low on items, fetch more
-    if (nextIndex >= items.length - 3) {
-      const nextPage = page + 1;
-      setPage(nextPage);
-      fetchItems(nextPage);
-    }
-
-    setCurrentIndex(nextIndex);
-    setHoveredStar(0);
-  }
+  // Filter out already-rated items
+  const visibleItems = items.filter((i) => !ratedIds.has(i.external_id));
 
   if (loading) {
     return (
@@ -140,18 +133,8 @@ export default function CategoryOnboardingPage() {
     );
   }
 
-  if (!currentItem) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="text-sm text-zinc-500">
-          No more items available. Try refreshing.
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Progress */}
       <div>
         <div className="flex items-center justify-between text-sm">
@@ -170,103 +153,158 @@ export default function CategoryOnboardingPage() {
             }}
           />
         </div>
+        <p className="mt-2 text-xs text-zinc-500">
+          Tap anything you know to rate it
+        </p>
       </div>
 
-      {/* Item card */}
-      <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="flex flex-col sm:flex-row">
-          {currentItem.image_url ? (
-            <div className="relative aspect-[2/3] w-full shrink-0 sm:w-48">
-              <Image
-                src={currentItem.image_url}
-                alt={currentItem.title}
-                fill
-                className="object-cover"
-                sizes="(max-width: 640px) 100vw, 192px"
-              />
-            </div>
-          ) : (
-            <div className="flex aspect-[2/3] w-full shrink-0 items-center justify-center bg-zinc-100 sm:w-48 dark:bg-zinc-800">
-              <span className="text-4xl text-zinc-300">?</span>
-            </div>
-          )}
-
-          <div className="flex flex-1 flex-col justify-between p-5">
-            <div>
-              <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-                {currentItem.title}
-                {currentItem.year && (
-                  <span className="ml-2 text-sm font-normal text-zinc-500">
-                    ({currentItem.year})
-                  </span>
-                )}
-              </h3>
-              {currentItem.creator && (
-                <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                  {currentItem.creator}
-                </p>
-              )}
-              {currentItem.genres.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {currentItem.genres.slice(0, 4).map((genre) => (
-                    <span
-                      key={genre}
-                      className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
-                    >
-                      {genre}
-                    </span>
-                  ))}
+      {/* Rating overlay */}
+      {ratingItem && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center">
+          <div className="w-full max-w-sm rounded-t-2xl bg-white p-5 dark:bg-zinc-900 sm:rounded-2xl">
+            <div className="flex gap-4">
+              {ratingItem.image_url && (
+                <div className="relative h-28 w-20 shrink-0 overflow-hidden rounded-lg">
+                  <Image
+                    src={ratingItem.image_url}
+                    alt={ratingItem.title}
+                    fill
+                    className="object-cover"
+                    sizes="80px"
+                  />
                 </div>
               )}
-              {currentItem.description && (
-                <p className="mt-3 line-clamp-3 text-sm text-zinc-600 dark:text-zinc-400">
-                  {currentItem.description}
-                </p>
-              )}
+              <div className="min-w-0 flex-1">
+                <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">
+                  {ratingItem.title}
+                </h3>
+                {ratingItem.year && (
+                  <p className="text-sm text-zinc-500">{ratingItem.year}</p>
+                )}
+                {ratingItem.creator && (
+                  <p className="text-sm text-zinc-500">{ratingItem.creator}</p>
+                )}
+                {ratingItem.genres.length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {ratingItem.genres.slice(0, 3).map((g) => (
+                      <span
+                        key={g}
+                        className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800"
+                      >
+                        {g}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
+
+            <div className="mt-5">
+              <p className="mb-2 text-center text-sm text-zinc-600 dark:text-zinc-400">
+                How would you rate it?
+              </p>
+              <div className="flex justify-center gap-3">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    onClick={() => handleRate(ratingItem, star)}
+                    onMouseEnter={() => setHoveredStar(star)}
+                    onMouseLeave={() => setHoveredStar(0)}
+                    disabled={submitting}
+                    className="p-1 text-3xl transition-transform hover:scale-110 active:scale-95 disabled:opacity-50"
+                  >
+                    <span className={star <= hoveredStar ? 'opacity-100' : 'opacity-30'}>
+                      ★
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                setRatingItem(null);
+                setHoveredStar(0);
+              }}
+              className="mt-4 w-full rounded-lg border border-zinc-200 py-2 text-sm text-zinc-500 dark:border-zinc-700"
+            >
+              Cancel
+            </button>
           </div>
         </div>
+      )}
+
+      {/* Item grid */}
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+        {visibleItems.map((item) => (
+          <button
+            key={item.external_id}
+            onClick={() => {
+              setRatingItem(item);
+              setHoveredStar(0);
+            }}
+            className="group relative overflow-hidden rounded-lg border border-zinc-200 bg-white transition-transform active:scale-95 dark:border-zinc-800 dark:bg-zinc-900"
+          >
+            {item.image_url ? (
+              <div className="relative aspect-[2/3]">
+                <Image
+                  src={item.image_url}
+                  alt={item.title}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 640px) 33vw, 25vw"
+                />
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2 pt-8">
+                  <p className="line-clamp-2 text-xs font-medium leading-tight text-white">
+                    {item.title}
+                  </p>
+                  {item.year && (
+                    <p className="text-[10px] text-zinc-300">{item.year}</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="flex aspect-[2/3] flex-col items-center justify-center bg-zinc-100 p-2 dark:bg-zinc-800">
+                <p className="line-clamp-3 text-center text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                  {item.title}
+                </p>
+                {item.year && (
+                  <p className="mt-1 text-[10px] text-zinc-500">{item.year}</p>
+                )}
+                {item.creator && (
+                  <p className="mt-0.5 line-clamp-1 text-[10px] text-zinc-400">
+                    {item.creator}
+                  </p>
+                )}
+              </div>
+            )}
+          </button>
+        ))}
       </div>
 
-      {/* Rating controls */}
-      <div className="space-y-4">
-        <div>
-          <p className="mb-3 text-center text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            How would you rate it?
-          </p>
-          <div className="flex justify-center gap-2">
-            {[1, 2, 3, 4, 5].map((star) => (
-              <button
-                key={star}
-                onClick={() => handleRate(star)}
-                onMouseEnter={() => setHoveredStar(star)}
-                onMouseLeave={() => setHoveredStar(0)}
-                disabled={rating}
-                className="rounded-lg p-2 text-3xl transition-transform hover:scale-110 disabled:opacity-50"
-                aria-label={`Rate ${star} star${star !== 1 ? 's' : ''}`}
-              >
-                <span
-                  className={
-                    star <= hoveredStar
-                      ? 'opacity-100'
-                      : 'opacity-30'
-                  }
-                >
-                  ★
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-
+      {/* Load more */}
+      {visibleItems.length > 0 && (
         <button
-          onClick={handleSkip}
-          disabled={rating}
-          className="w-full rounded-lg border border-zinc-200 px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800/50"
+          onClick={handleLoadMore}
+          className="w-full rounded-lg border border-zinc-200 py-2.5 text-sm text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800/50"
         >
-          Don&apos;t know it — skip
+          Load more
         </button>
-      </div>
+      )}
+
+      {visibleItems.length === 0 && !loading && (
+        <div className="py-8 text-center">
+          <p className="text-sm text-zinc-500">
+            No more items to show.
+          </p>
+          <button
+            onClick={handleLoadMore}
+            className="mt-3 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white dark:bg-zinc-50 dark:text-zinc-900"
+          >
+            Load more
+          </button>
+        </div>
+      )}
     </div>
   );
 }
