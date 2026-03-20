@@ -336,10 +336,7 @@ export default function CategoryOnboardingPage() {
                   return (
                     <button
                       key={star}
-                      onClick={() => {
-                        setSelectedStar(star);
-                        handleRate(ratingItem, star);
-                      }}
+                      onClick={() => setSelectedStar(star)}
                       onMouseEnter={() => !selectedStar && setHoveredStar(star)}
                       onMouseLeave={() => !selectedStar && setHoveredStar(0)}
                       disabled={submitting}
@@ -354,16 +351,29 @@ export default function CategoryOnboardingPage() {
               </div>
             </div>
 
-            <button
-              onClick={() => {
-                setRatingItem(null);
-                setHoveredStar(0);
-                setSelectedStar(0);
-              }}
-              className="mt-4 w-full rounded-lg border border-zinc-200 py-2 text-sm text-zinc-500 dark:border-zinc-700"
-            >
-              Cancel
-            </button>
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={() => {
+                  setRatingItem(null);
+                  setHoveredStar(0);
+                  setSelectedStar(0);
+                }}
+                className="flex-1 rounded-lg border border-zinc-200 py-2.5 text-sm text-zinc-500 dark:border-zinc-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (selectedStar > 0) {
+                    handleRate(ratingItem, selectedStar);
+                  }
+                }}
+                disabled={selectedStar === 0 || submitting}
+                className="flex-1 rounded-lg bg-zinc-900 py-2.5 text-sm font-medium text-white disabled:opacity-30 dark:bg-zinc-50 dark:text-zinc-900"
+              >
+                {submitting ? 'Saving...' : 'Submit'}
+              </button>
+            </div>
           </div>
         </div>
       )}
