@@ -1,10 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { buildTasteProfile } from '@/lib/taste-profile';
-import { generateRecommendations } from '@/lib/llm';
-import { searchByCategory } from '@/lib/tmdb';
+import { generateRecommendations, generateRefinement } from '@/lib/llm';
+import { searchByCategory, MIN_RATING_THRESHOLD, MIN_VOTE_COUNT } from '@/lib/tmdb';
 import { FREE_TIER_MONTHLY_LIMIT, COOLDOWN_DAYS, MAX_RECOMMENDATION_COUNT } from '@/lib/constants';
-import { MIN_RATING_THRESHOLD, MIN_VOTE_COUNT } from '@/lib/tmdb';
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -14,7 +13,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { category, genre } = await request.json();
+  const { category, genre, intent, refinement, sessionId } = await request.json();
 
   if (!category) {
     return NextResponse.json({ error: 'Category is required' }, { status: 400 });
@@ -42,7 +41,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Get user's ratings with item details
+  // Get user's ratings with item details (ALL categories for cross-media)
   const { data: ratings } = await supabase
     .from('ratings')
     .select('*, item:items(*)')
@@ -55,11 +54,20 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Transform ratings to include item data
   const ratingsWithItems = ratings.map((r) => ({
     ...r,
     item: r.item,
   }));
+
+  // Get taste fingerprint
+  const { data: fingerprintRecord } = await supabase
+    .from('taste_fingerprints')
+    .select('fingerprint')
+    .eq('user_id', user.id)
+    .is('category', null)
+    .single();
+
+  const fingerprint = fingerprintRecord?.fingerprint || null;
 
   // Get "not interested" items
   const { data: notInterestedRecs } = await supabase
@@ -72,7 +80,7 @@ export async function POST(request: NextRequest) {
     .map((r) => (r.item as unknown as { title: string })?.title)
     .filter(Boolean);
 
-  // Get previously recommended items (in cooldown)
+  // Get previously recommended items
   const { data: cooldowns } = await supabase
     .from('recommendation_cooldowns')
     .select('item:items(title)')
@@ -81,6 +89,20 @@ export async function POST(request: NextRequest) {
   const previouslyRecommendedTitles = (cooldowns || [])
     .map((c) => (c.item as unknown as { title: string })?.title)
     .filter(Boolean);
+
+  // Get previous misses (bad recommendation feedback)
+  const { data: badRecs } = await supabase
+    .from('recommendations')
+    .select('item:items(title), feedback')
+    .eq('user_id', user.id)
+    .eq('feedback', 'bad');
+
+  const previousMisses = (badRecs || [])
+    .map((r) => ({
+      title: (r.item as unknown as { title: string })?.title,
+      feedback: 'bad' as string,
+    }))
+    .filter((m) => m.title);
 
   // Also get all rated item titles to exclude
   const ratedTitles = ratingsWithItems
@@ -92,19 +114,55 @@ export async function POST(request: NextRequest) {
     ...new Set([...previouslyRecommendedTitles, ...ratedTitles]),
   ];
 
+  // Get conversation history if this is a refinement
+  let conversationHistory: { role: 'user' | 'assistant'; content: string }[] = [];
+  if (sessionId) {
+    const { data: session } = await supabase
+      .from('conversation_sessions')
+      .select('messages')
+      .eq('id', sessionId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (session?.messages) {
+      conversationHistory = session.messages as { role: 'user' | 'assistant'; content: string }[];
+    }
+  }
+
   // Build taste profile
   const tasteProfile = buildTasteProfile(
     ratingsWithItems,
     notInterestedTitles,
     allExcluded,
+    previousMisses,
     category,
-    genre || null
+    genre || null,
+    intent || null,
+    fingerprint
   );
 
   // Generate recommendations via LLM
   let llmResponse;
   try {
-    llmResponse = await generateRecommendations(tasteProfile, profile.tier);
+    if (refinement && conversationHistory.length > 0) {
+      // Build previous recommendations summary for refinement context
+      const prevRecsText = conversationHistory
+        .filter((m) => m.role === 'assistant')
+        .map((m) => m.content)
+        .join('\n');
+      llmResponse = await generateRefinement(
+        refinement,
+        prevRecsText,
+        conversationHistory,
+        profile.tier
+      );
+    } else {
+      llmResponse = await generateRecommendations(
+        tasteProfile,
+        profile.tier,
+        conversationHistory
+      );
+    }
   } catch (err) {
     console.error('LLM error:', err);
     return NextResponse.json(
@@ -113,13 +171,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Process each recommendation: search TMDB, create items, store recommendations
+  // Process each recommendation
   const batchId = crypto.randomUUID();
   const results = [];
 
   for (const rec of llmResponse.recommendations) {
     try {
-      // Search for the item on TMDB to get metadata
       const searchResults = await searchByCategory(category, rec.title);
       const match = searchResults.find(
         (s) =>
@@ -127,12 +184,9 @@ export async function POST(request: NextRequest) {
           s.title.toLowerCase().includes(rec.title.toLowerCase())
       ) || searchResults[0];
 
-      if (!match) {
-        // LLM hallucinated an item — skip it
-        continue;
-      }
+      if (!match) continue;
 
-      // Quality gate: skip items with low TMDB ratings
+      // Quality gate
       if (
         match.vote_count >= MIN_VOTE_COUNT &&
         match.rating < MIN_RATING_THRESHOLD
@@ -191,11 +245,11 @@ export async function POST(request: NextRequest) {
         const lastRecommended = new Date(cooldown.last_recommended_at);
         const daysSince = (Date.now() - lastRecommended.getTime()) / (1000 * 60 * 60 * 24);
         if (daysSince < COOLDOWN_DAYS || cooldown.times_recommended >= MAX_RECOMMENDATION_COUNT) {
-          continue; // Skip items in cooldown
+          continue;
         }
       }
 
-      // Store recommendation
+      // Store recommendation with intent
       const { data: recommendation } = await supabase
         .from('recommendations')
         .insert({
@@ -205,6 +259,7 @@ export async function POST(request: NextRequest) {
           reason: rec.reason,
           model_used: llmResponse.model,
           batch_id: batchId,
+          intent: intent || refinement || null,
         })
         .select('*, item:items(*)')
         .single();
@@ -239,6 +294,39 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Save/update conversation session
+  const assistantMessage = JSON.stringify(llmResponse.recommendations);
+  const newMessages = [
+    ...conversationHistory,
+    { role: 'user', content: refinement || intent || `Recommend ${category}` },
+    { role: 'assistant', content: assistantMessage },
+  ];
+
+  let currentSessionId = sessionId;
+  if (sessionId) {
+    await supabase
+      .from('conversation_sessions')
+      .update({
+        messages: newMessages,
+        batch_ids: [...(conversationHistory.length > 0 ? [] : []), batchId],
+      })
+      .eq('id', sessionId);
+  } else {
+    const { data: newSession } = await supabase
+      .from('conversation_sessions')
+      .insert({
+        user_id: user.id,
+        category,
+        intent: intent || null,
+        genre: genre || null,
+        messages: newMessages,
+        batch_ids: [batchId],
+      })
+      .select('id')
+      .single();
+    currentSessionId = newSession?.id;
+  }
+
   // Increment monthly request count
   await supabase
     .from('users')
@@ -250,6 +338,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     recommendations: results,
     batchId,
+    sessionId: currentSessionId,
     requestsUsed: profile.monthly_request_count + 1,
     requestsLimit: profile.monthly_request_limit,
   });

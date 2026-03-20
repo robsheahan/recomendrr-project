@@ -1,39 +1,61 @@
 import { Item, Rating } from '@/types/database';
+import { TasteFingerprint } from './taste-fingerprint';
 
 export interface TasteProfile {
   category: string;
   genre: string | null;
-  highlyRated: { title: string; score: number; year: number | null; genres: string[] }[];
-  moderatelyRated: { title: string; score: number; year: number | null; genres: string[] }[];
-  lowRated: { title: string; score: number; year: number | null; genres: string[] }[];
+  intent: string | null;
+  fingerprint: TasteFingerprint | null;
+  crossMediaHighlights: { title: string; score: number; category: string }[];
+  highlyRated: { title: string; score: number }[];
+  moderatelyRated: { title: string; score: number }[];
+  lowRated: { title: string; score: number }[];
   notInterested: string[];
   previouslyRecommended: string[];
+  previousMisses: { title: string; feedback: string }[];
 }
 
 export function buildTasteProfile(
   ratings: (Rating & { item: Item })[],
   notInterestedTitles: string[],
   previouslyRecommendedTitles: string[],
+  previousMisses: { title: string; feedback: string }[],
   category: string,
-  genre: string | null = null
+  genre: string | null = null,
+  intent: string | null = null,
+  fingerprint: TasteFingerprint | null = null
 ): TasteProfile {
   const categoryRatings = ratings.filter((r) => r.item.category === category);
 
-  const mapRating = (r: Rating & { item: Item }) => ({
-    title: r.item.title,
-    score: r.score,
-    year: r.item.year,
-    genres: r.item.genres,
-  });
+  // Cross-media highlights: top-rated items from OTHER categories
+  const otherCategoryRatings = ratings
+    .filter((r) => r.item.category !== category && r.score >= 4)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 7)
+    .map((r) => ({
+      title: r.item.title,
+      score: r.score,
+      category: r.item.category,
+    }));
 
   return {
     category,
     genre,
-    highlyRated: categoryRatings.filter((r) => r.score >= 4).map(mapRating),
-    moderatelyRated: categoryRatings.filter((r) => r.score === 3).map(mapRating),
-    lowRated: categoryRatings.filter((r) => r.score <= 2).map(mapRating),
+    intent,
+    fingerprint,
+    crossMediaHighlights: otherCategoryRatings,
+    highlyRated: categoryRatings
+      .filter((r) => r.score >= 4)
+      .map((r) => ({ title: r.item.title, score: r.score })),
+    moderatelyRated: categoryRatings
+      .filter((r) => r.score === 3)
+      .map((r) => ({ title: r.item.title, score: r.score })),
+    lowRated: categoryRatings
+      .filter((r) => r.score <= 2)
+      .map((r) => ({ title: r.item.title, score: r.score })),
     notInterested: notInterestedTitles,
     previouslyRecommended: previouslyRecommendedTitles,
+    previousMisses,
   };
 }
 
@@ -51,38 +73,72 @@ export function formatTasteProfileForLLM(profile: TasteProfile): string {
   const label = categoryLabels[profile.category] || profile.category;
   const lines: string[] = [];
 
-  lines.push(`Here is my taste profile for ${label}:\n`);
+  // Taste fingerprint first — primes the LLM to reason about the person
+  if (profile.fingerprint) {
+    const fp = profile.fingerprint;
+    lines.push('TASTE FINGERPRINT:');
+    lines.push(`- Narrative complexity: ${fp.narrative_complexity}`);
+    lines.push(`- Pacing preference: ${fp.preferred_pacing}`);
+    lines.push(`- Moral ambiguity tolerance: ${fp.moral_ambiguity_tolerance}`);
+    lines.push(`- Visual importance: ${fp.visual_importance}`);
+    if (fp.humor_styles.length > 0) {
+      lines.push(`- Humor styles: ${fp.humor_styles.join(', ')}`);
+    }
+    if (fp.emotional_register.length > 0) {
+      lines.push(`- Emotional register: ${fp.emotional_register.join(', ')}`);
+    }
+    if (fp.theme_affinities.length > 0) {
+      lines.push(`- Theme affinities: ${fp.theme_affinities.join(', ')}`);
+    }
+    if (fp.dealbreakers.length > 0) {
+      lines.push(`- Dealbreakers: ${fp.dealbreakers.join(', ')}`);
+    }
+    lines.push(`- Foreign language openness: ${fp.openness_to_foreign_language}`);
+    lines.push(`- Era preference: ${fp.era_preference}`);
+    lines.push(`- Orientation: ${fp.preference_orientation}`);
+    lines.push(`- Summary: ${fp.summary}`);
+    lines.push('');
+  }
 
+  // Cross-media highlights
+  if (profile.crossMediaHighlights.length > 0) {
+    lines.push('CROSS-MEDIA HIGHLIGHTS (top items from other categories):');
+    for (const item of profile.crossMediaHighlights) {
+      lines.push(`- ${item.title} (${item.score}/5, ${categoryLabels[item.category] || item.category})`);
+    }
+    lines.push('');
+  }
+
+  // Current intent
+  if (profile.intent) {
+    lines.push(`CURRENT INTENT: "${profile.intent}"`);
+    lines.push('');
+  }
+
+  // Genre constraint
   if (profile.genre) {
-    lines.push(`GENRE PREFERENCE: I'm currently in the mood for ${profile.genre}. All 3 recommendations MUST be in or closely related to the ${profile.genre} genre.\n`);
+    lines.push(`GENRE CONSTRAINT: All 3 recommendations MUST be in or closely related to the ${profile.genre} genre.`);
+    lines.push('');
   }
 
+  // Category ratings — simplified format
+  lines.push(`CATEGORY RATINGS [${label}]:`);
   if (profile.highlyRated.length > 0) {
-    lines.push('HIGHLY RATED (4-5 stars):');
-    for (const item of profile.highlyRated) {
-      const genres = item.genres.length > 0 ? item.genres.join('/') : '';
-      const yearStr = item.year ? `, ${item.year}` : '';
-      lines.push(`- ${item.title} (${item.score}/5)${yearStr}${genres ? `, ${genres}` : ''}`);
-    }
-    lines.push('');
+    lines.push(`Loved: ${profile.highlyRated.map((r) => r.title).join(', ')}`);
   }
-
   if (profile.moderatelyRated.length > 0) {
-    lines.push('MODERATELY RATED (3 stars):');
-    for (const item of profile.moderatelyRated) {
-      const genres = item.genres.length > 0 ? item.genres.join('/') : '';
-      const yearStr = item.year ? `, ${item.year}` : '';
-      lines.push(`- ${item.title} (${item.score}/5)${yearStr}${genres ? `, ${genres}` : ''}`);
-    }
-    lines.push('');
+    lines.push(`Liked: ${profile.moderatelyRated.map((r) => r.title).join(', ')}`);
   }
-
   if (profile.lowRated.length > 0) {
-    lines.push('LOW RATED (1-2 stars):');
-    for (const item of profile.lowRated) {
-      const genres = item.genres.length > 0 ? item.genres.join('/') : '';
-      const yearStr = item.year ? `, ${item.year}` : '';
-      lines.push(`- ${item.title} (${item.score}/5)${yearStr}${genres ? `, ${genres}` : ''}`);
+    lines.push(`Disliked: ${profile.lowRated.map((r) => r.title).join(', ')}`);
+  }
+  lines.push('');
+
+  // Previous misses — critical for learning
+  if (profile.previousMisses.length > 0) {
+    lines.push('PREVIOUS MISSES (you recommended these but the user flagged them as bad recommendations — learn from this):');
+    for (const miss of profile.previousMisses) {
+      lines.push(`- ${miss.title}`);
     }
     lines.push('');
   }
@@ -104,11 +160,7 @@ export function formatTasteProfileForLLM(profile: TasteProfile): string {
   }
 
   const genreClause = profile.genre ? ` in the ${profile.genre} genre` : '';
-  lines.push(`Based on this profile, recommend 3 ${label}${genreClause} I would enjoy.`);
-  lines.push('For each recommendation, provide:');
-  lines.push('1. Title and year');
-  lines.push('2. A brief reason tied to my specific taste profile');
-  lines.push('3. A confidence score (high/medium/low)');
+  lines.push(`Recommend 3 ${label}${genreClause} for this user.`);
   lines.push('');
   lines.push('Return as JSON with this exact structure:');
   lines.push('{"recommendations": [{"title": "...", "year": 2020, "reason": "...", "confidence": "high"}]}');

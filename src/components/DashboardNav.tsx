@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { href: '/saved', label: 'Saved' },
   { href: '/ratings', label: 'Ratings' },
   { href: '/history', label: 'History' },
+  { href: '/profile', label: 'Taste Profile' },
 ];
 
 export function DashboardNav() {

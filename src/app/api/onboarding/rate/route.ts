@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { ONBOARDING_RATINGS_REQUIRED } from '@/lib/constants';
+import { generateTasteFingerprint } from '@/lib/taste-fingerprint';
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -108,6 +109,34 @@ export async function POST(request: NextRequest) {
         .from('users')
         .update({ onboarding_complete: true })
         .eq('id', user.id);
+
+      // Generate taste fingerprint in the background
+      try {
+        const { data: allRatings } = await supabase
+          .from('ratings')
+          .select('*, item:items(*)')
+          .eq('user_id', user.id);
+
+        if (allRatings && allRatings.length >= 5) {
+          const ratingsWithItems = allRatings.map((r) => ({ ...r, item: r.item }));
+          const fingerprint = await generateTasteFingerprint(ratingsWithItems);
+
+          await supabase
+            .from('taste_fingerprints')
+            .upsert(
+              {
+                user_id: user.id,
+                category: null,
+                fingerprint,
+                ratings_count_at_generation: allRatings.length,
+              },
+              { onConflict: 'user_id,category' }
+            );
+        }
+      } catch (err) {
+        // Non-blocking — fingerprint will be generated on first recommendation request
+        console.error('Fingerprint generation during onboarding failed:', err);
+      }
     }
   }
 
