@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { DashboardNav } from '@/components/DashboardNav';
+import Link from 'next/link';
 
 export default async function DashboardLayout({
   children,
@@ -21,9 +22,11 @@ export default async function DashboardLayout({
       <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
         <div className="mx-auto max-w-5xl px-4">
           <div className="flex h-14 items-center justify-between">
-            <h1 className="text-lg font-black tracking-tighter text-zinc-900 dark:text-zinc-50">
-              RECOMMENDR
-            </h1>
+            <Link href="/dashboard">
+              <h1 className="text-lg font-black tracking-tighter text-zinc-900 dark:text-zinc-50">
+                RECOMMENDR
+              </h1>
+            </Link>
             <form action="/api/auth/signout" method="post">
               <button
                 type="submit"
