@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { CATEGORY_LABELS, ONBOARDING_RATINGS_REQUIRED } from '@/lib/constants';
 import { MediaCategory } from '@/types/database';
@@ -32,6 +32,11 @@ export default function CategoryOnboardingPage() {
   const [selectedStar, setSelectedStar] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [ratedIds, setRatedIds] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<OnboardingItem[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const searchDebounce = useRef<NodeJS.Timeout>(undefined);
 
   const categoryLabel = CATEGORY_LABELS[category] || category;
 
@@ -117,6 +122,35 @@ export default function CategoryOnboardingPage() {
     }
   }
 
+  // Search
+  useEffect(() => {
+    if (searchQuery.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    if (searchDebounce.current) clearTimeout(searchDebounce.current);
+    searchDebounce.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await fetch(
+          `/api/search/${category}?q=${encodeURIComponent(searchQuery)}`
+        );
+        const data = await res.json();
+        const results = (data.results || []).filter(
+          (r: OnboardingItem) => !ratedIds.has(r.external_id)
+        );
+        setSearchResults(results.slice(0, 8));
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 400);
+    return () => {
+      if (searchDebounce.current) clearTimeout(searchDebounce.current);
+    };
+  }, [searchQuery, category, ratedIds]);
+
   function handleLoadMore() {
     const nextPage = page + 1;
     setPage(nextPage);
@@ -157,6 +191,98 @@ export default function CategoryOnboardingPage() {
         <p className="mt-2 text-xs text-zinc-500">
           Tap anything you know to rate it
         </p>
+      </div>
+
+      {/* Search / Add your own */}
+      <div>
+        {showSearch ? (
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={`Search for a ${categoryLabel.toLowerCase().replace(/s$/, '')}...`}
+                autoFocus
+                className="flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+              />
+              <button
+                onClick={() => {
+                  setShowSearch(false);
+                  setSearchQuery('');
+                  setSearchResults([]);
+                }}
+                className="rounded-lg px-3 py-2 text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+              >
+                Cancel
+              </button>
+            </div>
+
+            {searching && (
+              <p className="text-center text-xs text-zinc-500">Searching...</p>
+            )}
+
+            {searchResults.length > 0 && (
+              <div className="divide-y divide-zinc-100 overflow-hidden rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
+                {searchResults.map((item) => (
+                  <button
+                    key={item.external_id}
+                    onClick={() => {
+                      setRatingItem(item);
+                      setHoveredStar(0);
+                      setSelectedStar(0);
+                    }}
+                    className="flex w-full items-center gap-3 p-3 text-left hover:bg-zinc-50 active:bg-zinc-100 dark:hover:bg-zinc-800 dark:active:bg-zinc-800/80"
+                  >
+                    {item.image_url ? (
+                      <div className="relative h-14 w-10 shrink-0 overflow-hidden rounded">
+                        <Image
+                          src={item.image_url}
+                          alt={item.title}
+                          fill
+                          className="object-cover"
+                          sizes="40px"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex h-14 w-10 shrink-0 items-center justify-center rounded bg-zinc-100 dark:bg-zinc-800">
+                        <span className="text-xs text-zinc-400">?</span>
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-50">
+                        {item.title}
+                        {item.year && (
+                          <span className="ml-1 font-normal text-zinc-500">
+                            ({item.year})
+                          </span>
+                        )}
+                      </p>
+                      {item.creator && (
+                        <p className="truncate text-xs text-zinc-500">
+                          {item.creator}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {searchQuery.length >= 2 && !searching && searchResults.length === 0 && (
+              <p className="text-center text-xs text-zinc-500">
+                No results found
+              </p>
+            )}
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowSearch(true)}
+            className="w-full rounded-lg border border-dashed border-zinc-300 py-2.5 text-sm text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-700 dark:hover:border-zinc-600 dark:hover:text-zinc-300"
+          >
+            + Add your own
+          </button>
+        )}
       </div>
 
       {/* Rating overlay */}
