@@ -29,6 +29,7 @@ export default function CategoryOnboardingPage() {
   const [page, setPage] = useState(1);
   const [ratingItem, setRatingItem] = useState<OnboardingItem | null>(null);
   const [hoveredStar, setHoveredStar] = useState(0);
+  const [selectedStar, setSelectedStar] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [ratedIds, setRatedIds] = useState<Set<string>>(new Set());
 
@@ -204,20 +205,26 @@ export default function CategoryOnboardingPage() {
                 How would you rate it?
               </p>
               <div className="flex justify-center gap-3">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    onClick={() => handleRate(ratingItem, star)}
-                    onMouseEnter={() => setHoveredStar(star)}
-                    onMouseLeave={() => setHoveredStar(0)}
-                    disabled={submitting}
-                    className="p-1 text-3xl transition-transform hover:scale-110 active:scale-95 disabled:opacity-50"
-                  >
-                    <span className={star <= hoveredStar ? 'opacity-100' : 'opacity-30'}>
-                      ★
-                    </span>
-                  </button>
-                ))}
+                {[1, 2, 3, 4, 5].map((star) => {
+                  const filled = star <= (selectedStar || hoveredStar);
+                  return (
+                    <button
+                      key={star}
+                      onClick={() => {
+                        setSelectedStar(star);
+                        handleRate(ratingItem, star);
+                      }}
+                      onMouseEnter={() => !selectedStar && setHoveredStar(star)}
+                      onMouseLeave={() => !selectedStar && setHoveredStar(0)}
+                      disabled={submitting}
+                      className="p-1 text-3xl transition-transform hover:scale-110 active:scale-95 disabled:opacity-50"
+                    >
+                      <span className={filled ? 'text-amber-500 opacity-100' : 'opacity-30'}>
+                        ★
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -225,6 +232,7 @@ export default function CategoryOnboardingPage() {
               onClick={() => {
                 setRatingItem(null);
                 setHoveredStar(0);
+                setSelectedStar(0);
               }}
               className="mt-4 w-full rounded-lg border border-zinc-200 py-2 text-sm text-zinc-500 dark:border-zinc-700"
             >
@@ -242,6 +250,7 @@ export default function CategoryOnboardingPage() {
             onClick={() => {
               setRatingItem(item);
               setHoveredStar(0);
+              setSelectedStar(0);
             }}
             className="group relative overflow-hidden rounded-lg border border-zinc-200 bg-white transition-transform active:scale-95 dark:border-zinc-800 dark:bg-zinc-900"
           >

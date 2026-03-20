@@ -2,7 +2,11 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { RecommendationGenerator } from '@/components/RecommendationGenerator';
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ skip_onboarding?: string }>;
+}) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -12,26 +16,31 @@ export default async function DashboardPage() {
     redirect('/auth/login');
   }
 
-  // Check if user has completed onboarding
-  const { data: profile } = await supabase
-    .from('users')
-    .select('onboarding_complete, tier, monthly_request_count, monthly_request_limit')
-    .eq('id', user.id)
-    .single();
+  const params = await searchParams;
+  const skipOnboarding = params.skip_onboarding === '1';
 
-  if (!profile?.onboarding_complete) {
-    const { data: categories } = await supabase
-      .from('user_categories')
-      .select('category, onboarding_complete')
-      .eq('user_id', user.id);
+  // Check if user has completed onboarding (unless they explicitly skipped)
+  if (!skipOnboarding) {
+    const { data: profile } = await supabase
+      .from('users')
+      .select('onboarding_complete')
+      .eq('id', user.id)
+      .single();
 
-    if (!categories || categories.length === 0) {
-      redirect('/onboarding');
-    }
+    if (!profile?.onboarding_complete) {
+      const { data: categories } = await supabase
+        .from('user_categories')
+        .select('category, onboarding_complete')
+        .eq('user_id', user.id);
 
-    const nextIncomplete = categories.find((c) => !c.onboarding_complete);
-    if (nextIncomplete) {
-      redirect(`/onboarding/${nextIncomplete.category}`);
+      if (!categories || categories.length === 0) {
+        redirect('/onboarding');
+      }
+
+      const nextIncomplete = categories.find((c) => !c.onboarding_complete);
+      if (nextIncomplete) {
+        redirect(`/onboarding/${nextIncomplete.category}`);
+      }
     }
   }
 

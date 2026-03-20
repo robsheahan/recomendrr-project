@@ -26,7 +26,7 @@ export default async function OnboardingLayout({
             </h1>
           </Link>
           <Link
-            href="/dashboard"
+            href="/dashboard?skip_onboarding=1"
             className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
             aria-label="Close"
           >
