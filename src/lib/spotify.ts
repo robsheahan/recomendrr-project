@@ -91,7 +91,7 @@ export async function searchMusicArtists(query: string) {
   }>('/search', {
     q: query,
     type: 'artist',
-    limit: '20',
+    limit: '10',
   });
 
   return (data.artists?.items || [])
@@ -114,7 +114,7 @@ export async function getPopularMusicArtists(page = 1) {
   }>('/search', {
     q: `genre:${genre}`,
     type: 'artist',
-    limit: '20',
+    limit: '10',
   });
 
   return (data.artists?.items || [])
@@ -159,7 +159,7 @@ export async function searchPodcasts(query: string) {
   }>('/search', {
     q: query,
     type: 'show',
-    limit: '20',
+    limit: '10',
     market: 'AU',
   });
 
@@ -182,7 +182,7 @@ export async function getPopularPodcasts(page = 1) {
   }>('/search', {
     q: topic,
     type: 'show',
-    limit: '20',
+    limit: '10',
     market: 'AU',
   });
 
