@@ -86,14 +86,16 @@ function mapArtist(a: SpotifyArtist) {
 
 export async function searchMusicArtists(query: string) {
   const data = await spotifyFetch<{
-    artists: { items: SpotifyArtist[] };
+    artists: { items: (SpotifyArtist | null)[] };
   }>('/search', {
     q: query,
     type: 'artist',
     limit: '20',
   });
 
-  return data.artists.items.map(mapArtist);
+  return (data.artists?.items || [])
+    .filter((a): a is SpotifyArtist => a !== null)
+    .map(mapArtist);
 }
 
 export async function getPopularMusicArtists(page = 1) {
@@ -107,14 +109,15 @@ export async function getPopularMusicArtists(page = 1) {
   const genre = genres[(page - 1) % genres.length];
 
   const data = await spotifyFetch<{
-    artists: { items: SpotifyArtist[] };
+    artists: { items: (SpotifyArtist | null)[] };
   }>('/search', {
     q: `genre:${genre}`,
     type: 'artist',
     limit: '20',
   });
 
-  return data.artists.items
+  return (data.artists?.items || [])
+    .filter((a): a is SpotifyArtist => a !== null)
     .sort((a, b) => b.popularity - a.popularity)
     .map(mapArtist);
 }
@@ -151,7 +154,7 @@ function mapPodcast(s: SpotifyShow) {
 
 export async function searchPodcasts(query: string) {
   const data = await spotifyFetch<{
-    shows: { items: SpotifyShow[] };
+    shows: { items: (SpotifyShow | null)[] };
   }>('/search', {
     q: query,
     type: 'show',
@@ -159,7 +162,9 @@ export async function searchPodcasts(query: string) {
     market: 'AU',
   });
 
-  return data.shows.items.map(mapPodcast);
+  return (data.shows?.items || [])
+    .filter((s): s is SpotifyShow => s !== null)
+    .map(mapPodcast);
 }
 
 export async function getPopularPodcasts(page = 1) {
@@ -172,7 +177,7 @@ export async function getPopularPodcasts(page = 1) {
   const topic = topics[(page - 1) % topics.length];
 
   const data = await spotifyFetch<{
-    shows: { items: SpotifyShow[] };
+    shows: { items: (SpotifyShow | null)[] };
   }>('/search', {
     q: topic,
     type: 'show',
@@ -180,7 +185,9 @@ export async function getPopularPodcasts(page = 1) {
     market: 'AU',
   });
 
-  return data.shows.items.map(mapPodcast);
+  return (data.shows?.items || [])
+    .filter((s): s is SpotifyShow => s !== null)
+    .map(mapPodcast);
 }
 
 // --- Genre lists ---
