@@ -27,6 +27,10 @@ const FILTER_CATEGORIES: (MediaCategory | 'all')[] = [
   'movies',
   'tv_shows',
   'documentaries',
+  'fiction_books',
+  'nonfiction_books',
+  'podcasts',
+  'music_artists',
 ];
 
 export default function RatingsPage() {

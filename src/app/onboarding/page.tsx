@@ -7,11 +7,14 @@ import { MediaCategory } from '@/types/database';
 
 const ALL_CATEGORIES = Object.keys(CATEGORY_LABELS) as MediaCategory[];
 
-// Phase 1 MVP: only movies, tv_shows, documentaries have API integrations
 const AVAILABLE_CATEGORIES: MediaCategory[] = [
   'movies',
   'tv_shows',
   'documentaries',
+  'fiction_books',
+  'nonfiction_books',
+  'podcasts',
+  'music_artists',
 ];
 
 export default function OnboardingCategoriesPage() {

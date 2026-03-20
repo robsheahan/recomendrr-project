@@ -17,7 +17,10 @@ interface SearchResult {
   image_url: string | null;
 }
 
-const SEARCHABLE_CATEGORIES: MediaCategory[] = ['movies', 'tv_shows', 'documentaries'];
+const SEARCHABLE_CATEGORIES: MediaCategory[] = [
+  'movies', 'tv_shows', 'documentaries',
+  'fiction_books', 'nonfiction_books', 'podcasts', 'music_artists',
+];
 
 export function SearchAndRate() {
   const [category, setCategory] = useState<MediaCategory>('movies');
