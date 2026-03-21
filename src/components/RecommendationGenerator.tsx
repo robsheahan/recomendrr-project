@@ -297,46 +297,53 @@ export function RecommendationGenerator() {
 
       {/* Intent / Mood */}
       <div>
-        <div className="mb-2 flex items-center justify-between">
-          <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            What are you in the mood for?
-          </label>
+        <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          What are you in the mood for?
+        </label>
+
+        <div className="flex flex-wrap gap-2">
+          {(selectedCategory
+            ? CATEGORY_INTENTS[selectedCategory] || DEFAULT_INTENTS
+            : DEFAULT_INTENTS
+          ).map((qi) => (
+            <button
+              key={qi.label}
+              onClick={() => {
+                setIntentMode('quick');
+                setSelectedIntent(selectedIntent === qi.value ? '' : qi.value);
+              }}
+              className={`rounded-full px-3.5 py-2 text-xs font-medium transition-colors ${
+                intentMode === 'quick' && selectedIntent === qi.value
+                  ? 'bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900'
+                  : 'border border-zinc-200 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800'
+              }`}
+            >
+              {qi.label}
+            </button>
+          ))}
           <button
-            onClick={() => setIntentMode(intentMode === 'quick' ? 'custom' : 'quick')}
-            className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+            onClick={() => {
+              setIntentMode('custom');
+              setSelectedIntent('');
+            }}
+            className={`rounded-full px-3.5 py-2 text-xs font-medium transition-colors ${
+              intentMode === 'custom'
+                ? 'bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900'
+                : 'border border-zinc-200 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800'
+            }`}
           >
-            {intentMode === 'quick' ? 'Describe it yourself' : 'Quick select'}
+            Custom
           </button>
         </div>
 
-        {intentMode === 'quick' ? (
-          <div className="flex flex-wrap gap-2">
-            {(selectedCategory
-              ? CATEGORY_INTENTS[selectedCategory] || DEFAULT_INTENTS
-              : DEFAULT_INTENTS
-            ).map((qi) => (
-              <button
-                key={qi.label}
-                onClick={() =>
-                  setSelectedIntent(selectedIntent === qi.value ? '' : qi.value)
-                }
-                className={`rounded-full px-3.5 py-2 text-xs font-medium transition-colors ${
-                  selectedIntent === qi.value
-                    ? 'bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900'
-                    : 'border border-zinc-200 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800'
-                }`}
-              >
-                {qi.label}
-              </button>
-            ))}
-          </div>
-        ) : (
+        {intentMode === 'custom' && (
           <textarea
             value={customIntent}
             onChange={(e) => setCustomIntent(e.target.value)}
             placeholder="Describe what you're looking for..."
             rows={2}
-            className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+            autoFocus
+            className="mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
           />
         )}
       </div>
