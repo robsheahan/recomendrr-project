@@ -121,6 +121,29 @@ export default function CategoryOnboardingPage() {
     }
   }
 
+  async function handleSkipCategory() {
+    try {
+      const res = await fetch('/api/onboarding/skip-category', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category }),
+      });
+
+      if (res.ok) {
+        const progressRes = await fetch('/api/onboarding/progress');
+        const progress = await progressRes.json();
+
+        if (progress.allComplete || !progress.nextCategory) {
+          router.push('/dashboard');
+        } else {
+          router.push(`/onboarding/${progress.nextCategory}`);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to skip category:', err);
+    }
+  }
+
   // Search
   useEffect(() => {
     if (searchQuery.length < 2) {
@@ -187,9 +210,17 @@ export default function CategoryOnboardingPage() {
             }}
           />
         </div>
-        <p className="mt-2 text-xs text-zinc-500">
-          Tap anything you know to rate it
-        </p>
+        <div className="mt-2 flex items-center justify-between">
+          <p className="text-xs text-zinc-500">
+            Tap anything you know to rate it
+          </p>
+          <button
+            onClick={handleSkipCategory}
+            className="text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+          >
+            {ratingsCount > 0 ? 'Done' : 'Skip category'}
+          </button>
+        </div>
       </div>
 
       {/* Search */}
