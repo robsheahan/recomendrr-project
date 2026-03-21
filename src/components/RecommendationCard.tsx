@@ -36,7 +36,9 @@ export function RecommendationCard({
   const [acting, setActing] = useState(false);
   const [showRating, setShowRating] = useState(false);
   const [hoveredStar, setHoveredStar] = useState(0);
+  const [selectedStar, setSelectedStar] = useState(0);
   const [dismissed, setDismissed] = useState(false);
+  const [actionTaken, setActionTaken] = useState<string | null>(null);
   const [currentFeedback, setCurrentFeedback] = useState<string | null>(
     recommendation.feedback || null
   );
@@ -47,12 +49,14 @@ export function RecommendationCard({
     setActing(true);
     try {
       await onAction(recommendation.id, status, score);
-      if (status === 'dismissed' || status === 'not_interested' || status === 'rated') {
+      setActionTaken(status === 'rated' ? `Rated ${score}/5` : status === 'saved' ? 'Saved' : status === 'dismissed' ? 'Dismissed' : 'Not interested');
+      if (status === 'dismissed' || status === 'not_interested') {
         setDismissed(true);
       }
     } finally {
       setActing(false);
       setShowRating(false);
+      setSelectedStar(0);
     }
   }
 
@@ -175,22 +179,38 @@ export function RecommendationCard({
             {/* Actions */}
             {showRating ? (
               <div className="flex items-center gap-1">
-                {[1, 2, 3, 4, 5].map((star) => (
+                {[1, 2, 3, 4, 5].map((star) => {
+                  const filled = star <= (selectedStar || hoveredStar);
+                  return (
+                    <button
+                      key={star}
+                      onClick={() => setSelectedStar(star)}
+                      onMouseEnter={() => !selectedStar && setHoveredStar(star)}
+                      onMouseLeave={() => !selectedStar && setHoveredStar(0)}
+                      disabled={acting}
+                      className="p-0.5 text-lg transition-transform hover:scale-110"
+                    >
+                      <span className={filled ? 'text-amber-500 opacity-100' : 'opacity-30'}>
+                        ★
+                      </span>
+                    </button>
+                  );
+                })}
+                {selectedStar > 0 && (
                   <button
-                    key={star}
-                    onClick={() => handleAction('rated', star)}
-                    onMouseEnter={() => setHoveredStar(star)}
-                    onMouseLeave={() => setHoveredStar(0)}
+                    onClick={() => handleAction('rated', selectedStar)}
                     disabled={acting}
-                    className="p-0.5 text-lg transition-transform hover:scale-110"
+                    className="ml-1 rounded bg-zinc-900 px-2 py-0.5 text-xs font-medium text-white dark:bg-zinc-50 dark:text-zinc-900"
                   >
-                    <span className={star <= hoveredStar ? 'opacity-100' : 'opacity-30'}>
-                      ★
-                    </span>
+                    Submit
                   </button>
-                ))}
+                )}
                 <button
-                  onClick={() => setShowRating(false)}
+                  onClick={() => {
+                    setShowRating(false);
+                    setSelectedStar(0);
+                    setHoveredStar(0);
+                  }}
                   className="ml-1 text-xs text-zinc-400 hover:text-zinc-600"
                 >
                   ✕
