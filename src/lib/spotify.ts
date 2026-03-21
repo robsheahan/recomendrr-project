@@ -61,27 +61,30 @@ async function spotifyFetch<T>(path: string, params: Record<string, string> = {}
 interface SpotifyArtist {
   id: string;
   name: string;
-  genres: string[];
+  genres?: string[];
   images: { url: string; width: number }[];
-  popularity: number;
-  followers: { total: number };
+  popularity?: number;
+  followers?: { total: number };
 }
 
 function mapArtist(a: SpotifyArtist) {
-  const image = a.images.sort((x, y) => y.width - x.width)[0];
+  const image = a.images?.sort((x, y) => y.width - x.width)[0];
+  const genres = a.genres || [];
+  const popularity = a.popularity || 0;
+  const followers = a.followers?.total || 0;
   return {
     external_id: a.id,
     external_source: 'spotify' as const,
     category: 'music_artists' as const,
     title: a.name,
     creator: null,
-    description: `${a.genres.slice(0, 3).join(', ')} artist`,
-    genres: a.genres.slice(0, 5),
+    description: genres.length > 0 ? `${genres.slice(0, 3).join(', ')}` : 'Artist',
+    genres: genres.slice(0, 5),
     year: null,
     image_url: image?.url || null,
-    rating: a.popularity / 10, // Convert 0-100 to 0-10 scale
-    vote_count: a.followers.total,
-    metadata: { popularity: a.popularity, followers: a.followers.total },
+    rating: popularity / 10,
+    vote_count: followers,
+    metadata: { popularity, followers },
   };
 }
 
@@ -118,7 +121,7 @@ export async function getPopularMusicArtists(page = 1) {
 
   return (data.artists?.items || [])
     .filter((a): a is SpotifyArtist => a !== null)
-    .sort((a, b) => b.popularity - a.popularity)
+    .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
     .map(mapArtist);
 }
 
