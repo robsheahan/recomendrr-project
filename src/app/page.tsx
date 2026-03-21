@@ -1,12 +1,7 @@
 import Link from 'next/link';
 
 const CATEGORIES = [
-  { icon: '🎥', label: 'Movies' },
-  { icon: '📺', label: 'TV Shows' },
-  { icon: '🎬', label: 'Documentaries' },
-  { icon: '📚', label: 'Books' },
-  { icon: '🎙️', label: 'Podcasts' },
-  { icon: '🎵', label: 'Music' },
+  'Movies', 'TV Shows', 'Documentaries', 'Books', 'Podcasts', 'Music',
 ];
 
 const FEATURES = [
@@ -66,10 +61,10 @@ export default function HomePage() {
         <div className="mt-12 flex flex-wrap justify-center gap-2">
           {CATEGORIES.map((cat) => (
             <span
-              key={cat.label}
-              className="rounded-full bg-zinc-900 px-3.5 py-1.5 text-xs text-zinc-400"
+              key={cat}
+              className="rounded-full border border-zinc-800 px-3.5 py-1.5 text-xs text-zinc-400"
             >
-              {cat.icon} {cat.label}
+              {cat}
             </span>
           ))}
         </div>

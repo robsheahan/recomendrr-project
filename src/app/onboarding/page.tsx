@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { CATEGORY_LABELS, CATEGORY_ICONS } from '@/lib/constants';
+import { CATEGORY_LABELS } from '@/lib/constants';
 import { MediaCategory } from '@/types/database';
+import { CategoryIcon } from '@/components/CategoryIcon';
 
 const ALL_CATEGORIES = Object.keys(CATEGORY_LABELS) as MediaCategory[];
 
@@ -103,7 +104,7 @@ export default function OnboardingPage() {
               onClick={() => router.push(`/onboarding/${cat.category}`)}
               className="flex w-full items-center gap-4 rounded-xl border border-zinc-200 bg-white p-4 text-left transition-colors active:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:active:bg-zinc-800"
             >
-              <span className="text-3xl">{CATEGORY_ICONS[cat.category]}</span>
+              <CategoryIcon category={cat.category} className="h-7 w-7 text-zinc-500 dark:text-zinc-400" />
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-zinc-900 dark:text-zinc-50">
                   {CATEGORY_LABELS[cat.category]}
@@ -166,7 +167,7 @@ export default function OnboardingPage() {
                       : 'border-zinc-200 bg-white hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-500'
                   }`}
                 >
-                  <span className="text-xl">{CATEGORY_ICONS[category]}</span>
+                  <CategoryIcon category={category} className={`h-5 w-5 ${isSelected ? '' : 'text-zinc-500 dark:text-zinc-400'}`} />
                   <p
                     className={`mt-1 text-xs font-medium ${
                       isSelected ? '' : 'text-zinc-900 dark:text-zinc-50'

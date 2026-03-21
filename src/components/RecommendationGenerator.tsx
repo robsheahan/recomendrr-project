@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { CATEGORY_LABELS, CATEGORY_ICONS } from '@/lib/constants';
+import { CATEGORY_LABELS } from '@/lib/constants';
 import { MediaCategory } from '@/types/database';
 import { RecommendationCard } from './RecommendationCard';
 
@@ -217,7 +217,7 @@ export function RecommendationGenerator() {
           >
             {categories.map((c) => (
               <option key={c.category} value={c.category}>
-                {CATEGORY_ICONS[c.category]} {CATEGORY_LABELS[c.category]}
+                {CATEGORY_LABELS[c.category]}
               </option>
             ))}
           </select>

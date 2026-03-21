@@ -10,15 +10,6 @@ export const CATEGORY_LABELS: Record<MediaCategory, string> = {
   music_artists: 'Music Artists',
 };
 
-export const CATEGORY_ICONS: Record<MediaCategory, string> = {
-  fiction_books: '📚',
-  nonfiction_books: '📖',
-  documentaries: '🎬',
-  tv_shows: '📺',
-  movies: '🎥',
-  podcasts: '🎙️',
-  music_artists: '🎵',
-};
 
 export const ONBOARDING_RATINGS_REQUIRED = 15;
 export const FREE_TIER_MONTHLY_LIMIT = 10;
