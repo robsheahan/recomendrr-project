@@ -210,15 +210,19 @@ export default function CategoryOnboardingPage() {
             }}
           />
         </div>
-        <div className="mt-2 flex items-center justify-between">
+        <div className="mt-3 flex items-center justify-between">
           <p className="text-xs text-zinc-500">
             Tap anything you know to rate it
           </p>
           <button
             onClick={handleSkipCategory}
-            className="text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+            className={`rounded-lg px-4 py-1.5 text-sm font-medium shadow-sm transition-colors ${
+              ratingsCount > 0
+                ? 'bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200'
+                : 'bg-zinc-200 text-zinc-600 hover:bg-zinc-300 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+            }`}
           >
-            {ratingsCount > 0 ? 'Done' : 'Skip category'}
+            {ratingsCount > 0 ? 'Done' : 'Skip'}
           </button>
         </div>
       </div>
