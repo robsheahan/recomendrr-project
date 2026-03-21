@@ -80,11 +80,11 @@ export default function SavedPage() {
               key={item.id}
               recommendation={item}
               onAction={handleAction}
-              onFeedback={async (id, feedback) => {
+              onFeedback={async (id, feedback, reason) => {
                 await fetch('/api/recommendations/feedback', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ recommendationId: id, feedback }),
+                  body: JSON.stringify({ recommendationId: id, feedback, reason }),
                 });
               }}
             />

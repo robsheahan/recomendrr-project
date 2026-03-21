@@ -2,8 +2,14 @@ import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { buildTasteProfile } from '@/lib/taste-profile';
 import { generateRecommendations, generateRefinement } from '@/lib/llm';
-import { searchByCategory, MIN_RATING_THRESHOLD, MIN_VOTE_COUNT } from '@/lib/tmdb';
-import { FREE_TIER_MONTHLY_LIMIT, COOLDOWN_DAYS, MAX_RECOMMENDATION_COUNT } from '@/lib/constants';
+import { searchByCategory } from '@/lib/tmdb';
+import { COOLDOWN_DAYS, MAX_RECOMMENDATION_COUNT } from '@/lib/constants';
+import {
+  computeRatingDistribution,
+  shouldRegenerateFingerprint,
+  generateTasteFingerprint,
+  generateMissAnalysis,
+} from '@/lib/taste-fingerprint';
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,18 +37,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
-  // Quota check disabled for now
-  // if (
-  //   profile.tier === 'free' &&
-  //   profile.monthly_request_count >= (profile.monthly_request_limit ?? FREE_TIER_MONTHLY_LIMIT)
-  // ) {
-  //   return NextResponse.json(
-  //     { error: 'Monthly recommendation limit reached. Upgrade to paid for unlimited.' },
-  //     { status: 429 }
-  //   );
-  // }
-
-  // Get user's ratings with item details (ALL categories for cross-media)
+  // Get ALL ratings with item details (cross-media)
   const { data: ratings } = await supabase
     .from('ratings')
     .select('*, item:items(*)')
@@ -55,22 +50,138 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const ratingsWithItems = ratings.map((r) => ({
-    ...r,
-    item: r.item,
-  }));
+  const ratingsWithItems = ratings.map((r) => ({ ...r, item: r.item }));
 
-  // Get taste fingerprint
+  // Compute rating distribution
+  const distribution = computeRatingDistribution(ratingsWithItems);
+
+  // --- Fingerprint with staleness check ---
   const { data: fingerprintRecord } = await supabase
     .from('taste_fingerprints')
-    .select('fingerprint')
+    .select('*')
     .eq('user_id', user.id)
     .is('category', null)
     .single();
 
-  const fingerprint = fingerprintRecord?.fingerprint || null;
+  let fingerprint = fingerprintRecord?.fingerprint || null;
+  let tasteThesis = fingerprintRecord?.taste_thesis || null;
+  let evolutionNotes = fingerprintRecord?.evolution_notes || null;
+  let crossCategoryPatterns = fingerprintRecord?.cross_category_patterns || null;
+  let missAnalysis = fingerprintRecord?.miss_analysis || null;
 
-  // Get "not interested" items
+  // Count bad feedback since last fingerprint generation
+  const ratingsAtGen = fingerprintRecord?.ratings_count_at_generation || 0;
+  const { count: badFeedbackCount } = await supabase
+    .from('recommendations')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .eq('feedback', 'bad')
+    .gt('created_at', fingerprintRecord?.generated_at || '2000-01-01');
+
+  const needsRegen = !fingerprint || shouldRegenerateFingerprint(
+    ratings.length,
+    ratingsAtGen,
+    badFeedbackCount || 0
+  );
+
+  if (needsRegen) {
+    try {
+      const result = await generateTasteFingerprint(
+        ratingsWithItems,
+        fingerprint
+      );
+      fingerprint = result.fingerprint;
+      tasteThesis = result.tasteThesis;
+      evolutionNotes = result.evolutionNotes;
+      crossCategoryPatterns = result.crossCategoryPatterns;
+
+      // Generate miss analysis if there are bad recs
+      const { data: badRecs } = await supabase
+        .from('recommendations')
+        .select('item:items(title, genres), feedback_reason')
+        .eq('user_id', user.id)
+        .eq('feedback', 'bad');
+
+      if (badRecs && badRecs.length > 0) {
+        const missData = badRecs.map((r) => ({
+          title: (r.item as unknown as { title: string })?.title || '',
+          reason: r.feedback_reason,
+          genres: (r.item as unknown as { genres: string[] })?.genres || [],
+        }));
+        missAnalysis = await generateMissAnalysis(missData);
+      }
+
+      // Save updated fingerprint
+      const newVersion = (fingerprintRecord?.fingerprint_version || 0) + 1;
+      const previousFingerprints = fingerprintRecord?.previous_fingerprints || [];
+      if (fingerprintRecord?.fingerprint) {
+        previousFingerprints.push({
+          fingerprint: fingerprintRecord.fingerprint,
+          generated_at: fingerprintRecord.generated_at,
+          ratings_count: ratingsAtGen,
+        });
+        // Keep last 5 versions
+        if (previousFingerprints.length > 5) previousFingerprints.shift();
+      }
+
+      const upsertData = {
+        user_id: user.id,
+        category: null,
+        fingerprint,
+        generated_at: new Date().toISOString(),
+        ratings_count_at_generation: ratings.length,
+        fingerprint_version: newVersion,
+        evolution_notes: evolutionNotes,
+        taste_thesis: tasteThesis,
+        cross_category_patterns: crossCategoryPatterns,
+        miss_analysis: missAnalysis,
+        rating_distribution: distribution,
+        previous_fingerprints: previousFingerprints,
+      };
+
+      if (fingerprintRecord) {
+        await supabase
+          .from('taste_fingerprints')
+          .update(upsertData)
+          .eq('id', fingerprintRecord.id);
+      } else {
+        await supabase
+          .from('taste_fingerprints')
+          .insert(upsertData);
+      }
+    } catch (err) {
+      console.error('Fingerprint regen failed:', err);
+      // Continue with stale fingerprint
+    }
+  }
+
+  // --- Confidence calibration ---
+  let calibration: { high: number | null; medium: number | null; low: number | null; total: number } | null = null;
+
+  const { data: feedbackRecs } = await supabase
+    .from('recommendations')
+    .select('confidence, feedback')
+    .eq('user_id', user.id)
+    .not('feedback', 'is', null)
+    .not('confidence', 'is', null);
+
+  if (feedbackRecs && feedbackRecs.length >= 5) {
+    const byConfidence: Record<string, { good: number; total: number }> = {};
+    for (const r of feedbackRecs) {
+      const c = r.confidence || 'unknown';
+      if (!byConfidence[c]) byConfidence[c] = { good: 0, total: 0 };
+      byConfidence[c].total++;
+      if (r.feedback === 'good') byConfidence[c].good++;
+    }
+    calibration = {
+      high: byConfidence['high'] ? byConfidence['high'].good / byConfidence['high'].total : null,
+      medium: byConfidence['medium'] ? byConfidence['medium'].good / byConfidence['medium'].total : null,
+      low: byConfidence['low'] ? byConfidence['low'].good / byConfidence['low'].total : null,
+      total: feedbackRecs.length,
+    };
+  }
+
+  // --- Exclusion lists ---
   const { data: notInterestedRecs } = await supabase
     .from('recommendations')
     .select('item:items(title)')
@@ -81,7 +192,6 @@ export async function POST(request: NextRequest) {
     .map((r) => (r.item as unknown as { title: string })?.title)
     .filter(Boolean);
 
-  // Get previously recommended items
   const { data: cooldowns } = await supabase
     .from('recommendation_cooldowns')
     .select('item:items(title)')
@@ -91,31 +201,14 @@ export async function POST(request: NextRequest) {
     .map((c) => (c.item as unknown as { title: string })?.title)
     .filter(Boolean);
 
-  // Get previous misses (bad recommendation feedback)
-  const { data: badRecs } = await supabase
-    .from('recommendations')
-    .select('item:items(title), feedback')
-    .eq('user_id', user.id)
-    .eq('feedback', 'bad');
-
-  const previousMisses = (badRecs || [])
-    .map((r) => ({
-      title: (r.item as unknown as { title: string })?.title,
-      feedback: 'bad' as string,
-    }))
-    .filter((m) => m.title);
-
-  // Also get all rated item titles to exclude
   const ratedTitles = ratingsWithItems
     .filter((r) => r.item?.category === category)
     .map((r) => r.item?.title)
     .filter(Boolean);
 
-  const allExcluded = [
-    ...new Set([...previouslyRecommendedTitles, ...ratedTitles]),
-  ];
+  const allExcluded = [...new Set([...previouslyRecommendedTitles, ...ratedTitles])];
 
-  // Get conversation history if this is a refinement
+  // --- Conversation history ---
   let conversationHistory: { role: 'user' | 'assistant'; content: string }[] = [];
   if (sessionId) {
     const { data: session } = await supabase
@@ -124,63 +217,53 @@ export async function POST(request: NextRequest) {
       .eq('id', sessionId)
       .eq('user_id', user.id)
       .single();
-
     if (session?.messages) {
       conversationHistory = session.messages as { role: 'user' | 'assistant'; content: string }[];
     }
   }
 
-  // Build taste profile
+  // --- Build taste profile ---
   const tasteProfile = buildTasteProfile(
     ratingsWithItems,
     notInterestedTitles,
     allExcluded,
-    previousMisses,
+    missAnalysis,
     category,
     genre || null,
     intent || null,
-    fingerprint
+    fingerprint,
+    tasteThesis,
+    evolutionNotes,
+    crossCategoryPatterns,
+    distribution,
+    calibration,
   );
 
-  // Generate recommendations via LLM
+  // --- Generate recommendations ---
   let llmResponse;
   try {
     if (refinement && conversationHistory.length > 0) {
-      // Build previous recommendations summary for refinement context
       const prevRecsText = conversationHistory
         .filter((m) => m.role === 'assistant')
         .map((m) => m.content)
         .join('\n');
-      llmResponse = await generateRefinement(
-        refinement,
-        prevRecsText,
-        conversationHistory,
-        profile.tier
-      );
+      llmResponse = await generateRefinement(refinement, prevRecsText, conversationHistory, profile.tier);
     } else {
-      llmResponse = await generateRecommendations(
-        tasteProfile,
-        profile.tier,
-        conversationHistory
-      );
+      llmResponse = await generateRecommendations(tasteProfile, profile.tier, conversationHistory);
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('LLM error:', message);
-    return NextResponse.json(
-      { error: `Failed to generate recommendations: ${message}` },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: `Failed to generate recommendations: ${message}` }, { status: 500 });
   }
 
-  // Process each recommendation
+  // --- Process recommendations ---
   const batchId = crypto.randomUUID();
   const results = [];
 
   for (const rec of llmResponse.recommendations) {
     try {
       const searchResults = await searchByCategory(category, rec.title);
-      // Try exact match, then partial match, then first result
       const recTitle = rec.title.toLowerCase();
       const match =
         searchResults.find((s) => s.title.toLowerCase() === recTitle) ||
@@ -190,13 +273,7 @@ export async function POST(request: NextRequest) {
 
       if (!match) continue;
 
-      // Quality gate — only filter out genuinely bad items (below 5.0)
-      if (
-        match.vote_count >= MIN_VOTE_COUNT &&
-        match.rating < 5.0
-      ) {
-        continue;
-      }
+      if (match.vote_count >= 50 && match.rating < 5.0) continue;
 
       // Upsert item
       const { data: existingItem } = await supabase
@@ -208,7 +285,6 @@ export async function POST(request: NextRequest) {
         .single();
 
       let itemId: string;
-
       if (existingItem) {
         itemId = existingItem.id;
       } else {
@@ -232,12 +308,11 @@ export async function POST(request: NextRequest) {
           })
           .select('id')
           .single();
-
         if (insertError || !newItem) continue;
         itemId = newItem.id;
       }
 
-      // Check cooldown
+      // Cooldown check
       const { data: cooldown } = await supabase
         .from('recommendation_cooldowns')
         .select('*')
@@ -248,12 +323,10 @@ export async function POST(request: NextRequest) {
       if (cooldown) {
         const lastRecommended = new Date(cooldown.last_recommended_at);
         const daysSince = (Date.now() - lastRecommended.getTime()) / (1000 * 60 * 60 * 24);
-        if (daysSince < COOLDOWN_DAYS || cooldown.times_recommended >= MAX_RECOMMENDATION_COUNT) {
-          continue;
-        }
+        if (daysSince < COOLDOWN_DAYS || cooldown.times_recommended >= MAX_RECOMMENDATION_COUNT) continue;
       }
 
-      // Store recommendation with intent
+      // Store recommendation WITH confidence
       const { data: recommendation } = await supabase
         .from('recommendations')
         .insert({
@@ -264,6 +337,7 @@ export async function POST(request: NextRequest) {
           model_used: llmResponse.model,
           batch_id: batchId,
           intent: intent || refinement || null,
+          confidence: rec.confidence,
         })
         .select('*, item:items(*)')
         .single();
@@ -280,17 +354,11 @@ export async function POST(request: NextRequest) {
       } else {
         await supabase
           .from('recommendation_cooldowns')
-          .insert({
-            user_id: user.id,
-            item_id: itemId,
-          });
+          .insert({ user_id: user.id, item_id: itemId });
       }
 
       if (recommendation) {
-        results.push({
-          ...recommendation,
-          confidence: rec.confidence,
-        });
+        results.push({ ...recommendation, confidence: rec.confidence });
       }
     } catch (err) {
       console.error('Error processing recommendation:', err);
@@ -298,7 +366,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Save/update conversation session
+  // Save conversation session
   const assistantMessage = JSON.stringify(llmResponse.recommendations);
   const newMessages = [
     ...conversationHistory,
@@ -310,10 +378,7 @@ export async function POST(request: NextRequest) {
   if (sessionId) {
     await supabase
       .from('conversation_sessions')
-      .update({
-        messages: newMessages,
-        batch_ids: [...(conversationHistory.length > 0 ? [] : []), batchId],
-      })
+      .update({ messages: newMessages })
       .eq('id', sessionId);
   } else {
     const { data: newSession } = await supabase
@@ -334,9 +399,7 @@ export async function POST(request: NextRequest) {
   // Increment monthly request count
   await supabase
     .from('users')
-    .update({
-      monthly_request_count: profile.monthly_request_count + 1,
-    })
+    .update({ monthly_request_count: profile.monthly_request_count + 1 })
     .eq('id', user.id);
 
   return NextResponse.json({
@@ -349,9 +412,6 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('Generate route error:', message);
-    return NextResponse.json(
-      { error: `Recommendation error: ${message}` },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: `Recommendation error: ${message}` }, { status: 500 });
   }
 }

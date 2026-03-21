@@ -98,5 +98,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to save rating' }, { status: 500 });
   }
 
+  // Post-consumption loop: if this item was previously recommended, record the rating
+  const { data: existingRec } = await supabase
+    .from('recommendations')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('item_id', itemId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (existingRec) {
+    await supabase
+      .from('recommendations')
+      .update({
+        post_rating: score,
+        status: 'rated',
+        status_changed_at: new Date().toISOString(),
+      })
+      .eq('id', existingRec.id);
+  }
+
   return NextResponse.json({ success: true, itemId });
 }
