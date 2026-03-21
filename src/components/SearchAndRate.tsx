@@ -29,6 +29,7 @@ export function SearchAndRate() {
   const [searching, setSearching] = useState(false);
   const [selectedItem, setSelectedItem] = useState<SearchResult | null>(null);
   const [hoveredStar, setHoveredStar] = useState(0);
+  const [selectedStar, setSelectedStar] = useState(0);
   const [rating, setRating] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const debounceRef = useRef<NodeJS.Timeout>(undefined);
@@ -75,6 +76,8 @@ export function SearchAndRate() {
       if (res.ok) {
         setSuccess(`Rated "${selectedItem.title}" ${score}/5`);
         setSelectedItem(null);
+        setSelectedStar(0);
+        setHoveredStar(0);
         setQuery('');
         setResults([]);
         setTimeout(() => setSuccess(null), 3000);
@@ -145,23 +148,33 @@ export function SearchAndRate() {
               <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
                 Rate it:
               </p>
-              <div className="mt-1 flex gap-1">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    onClick={() => handleRate(star)}
-                    onMouseEnter={() => setHoveredStar(star)}
-                    onMouseLeave={() => setHoveredStar(0)}
-                    disabled={rating}
-                    className="p-1 text-2xl transition-transform hover:scale-110"
-                  >
-                    <span
-                      className={star <= hoveredStar ? 'opacity-100' : 'opacity-30'}
+              <div className="mt-1 flex items-center gap-1">
+                {[1, 2, 3, 4, 5].map((star) => {
+                  const filled = star <= (selectedStar || hoveredStar);
+                  return (
+                    <button
+                      key={star}
+                      onClick={() => setSelectedStar(selectedStar === star ? 0 : star)}
+                      onMouseEnter={() => !selectedStar && setHoveredStar(star)}
+                      onMouseLeave={() => !selectedStar && setHoveredStar(0)}
+                      disabled={rating}
+                      className="p-1 text-2xl transition-transform hover:scale-110"
                     >
-                      ★
-                    </span>
+                      <span className={filled ? 'text-amber-500 opacity-100' : 'opacity-30'}>
+                        ★
+                      </span>
+                    </button>
+                  );
+                })}
+                {selectedStar > 0 && (
+                  <button
+                    onClick={() => handleRate(selectedStar)}
+                    disabled={rating}
+                    className="ml-2 rounded-lg bg-zinc-900 px-3 py-1 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                  >
+                    {rating ? 'Saving...' : 'Submit'}
                   </button>
-                ))}
+                )}
               </div>
             </div>
             <button
@@ -183,6 +196,7 @@ export function SearchAndRate() {
               onClick={() => {
                 setSelectedItem(item);
                 setHoveredStar(0);
+                setSelectedStar(0);
               }}
               className="flex w-full items-center gap-3 p-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
             >
