@@ -6,6 +6,7 @@ import { searchByCategory, MIN_RATING_THRESHOLD, MIN_VOTE_COUNT } from '@/lib/tm
 import { FREE_TIER_MONTHLY_LIMIT, COOLDOWN_DAYS, MAX_RECOMMENDATION_COUNT } from '@/lib/constants';
 
 export async function POST(request: NextRequest) {
+  try {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -164,9 +165,10 @@ export async function POST(request: NextRequest) {
       );
     }
   } catch (err) {
-    console.error('LLM error:', err);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('LLM error:', message);
     return NextResponse.json(
-      { error: 'Failed to generate recommendations. Please try again.' },
+      { error: `Failed to generate recommendations: ${message}` },
       { status: 500 }
     );
   }
@@ -342,4 +344,12 @@ export async function POST(request: NextRequest) {
     requestsUsed: profile.monthly_request_count + 1,
     requestsLimit: profile.monthly_request_limit,
   });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('Generate route error:', message);
+    return NextResponse.json(
+      { error: `Recommendation error: ${message}` },
+      { status: 500 }
+    );
+  }
 }
