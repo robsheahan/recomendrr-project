@@ -60,5 +60,30 @@ export async function PATCH(
       );
   }
 
+  // Create cooldown when user acts on a recommendation
+  // This prevents the same item from being recommended again soon
+  if (['saved', 'rated', 'dismissed', 'not_interested'].includes(status)) {
+    const { data: existingCooldown } = await supabase
+      .from('recommendation_cooldowns')
+      .select('id, times_recommended')
+      .eq('user_id', user.id)
+      .eq('item_id', recommendation.item_id)
+      .single();
+
+    if (existingCooldown) {
+      await supabase
+        .from('recommendation_cooldowns')
+        .update({
+          last_recommended_at: new Date().toISOString(),
+          times_recommended: existingCooldown.times_recommended + 1,
+        })
+        .eq('id', existingCooldown.id);
+    } else {
+      await supabase
+        .from('recommendation_cooldowns')
+        .insert({ user_id: user.id, item_id: recommendation.item_id });
+    }
+  }
+
   return NextResponse.json({ success: true });
 }

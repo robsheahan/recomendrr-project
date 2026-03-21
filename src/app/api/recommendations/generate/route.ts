@@ -314,19 +314,16 @@ export async function POST(request: NextRequest) {
         itemId = newItem.id;
       }
 
-      // Cooldown check
-      const { data: cooldown } = await supabase
-        .from('recommendation_cooldowns')
-        .select('*')
+      // Check if this item was already recommended recently (skip duplicates within session)
+      const { data: recentRec } = await supabase
+        .from('recommendations')
+        .select('id')
         .eq('user_id', user.id)
         .eq('item_id', itemId)
+        .eq('status', 'pending')
         .single();
 
-      if (cooldown) {
-        const lastRecommended = new Date(cooldown.last_recommended_at);
-        const daysSince = (Date.now() - lastRecommended.getTime()) / (1000 * 60 * 60 * 24);
-        if (daysSince < COOLDOWN_DAYS || cooldown.times_recommended >= MAX_RECOMMENDATION_COUNT) continue;
-      }
+      if (recentRec) continue;
 
       // Store recommendation WITH confidence
       const { data: recommendation } = await supabase
@@ -343,21 +340,6 @@ export async function POST(request: NextRequest) {
         })
         .select('*, item:items(*)')
         .single();
-
-      // Upsert cooldown
-      if (cooldown) {
-        await supabase
-          .from('recommendation_cooldowns')
-          .update({
-            last_recommended_at: new Date().toISOString(),
-            times_recommended: cooldown.times_recommended + 1,
-          })
-          .eq('id', cooldown.id);
-      } else {
-        await supabase
-          .from('recommendation_cooldowns')
-          .insert({ user_id: user.id, item_id: itemId });
-      }
 
       if (recommendation) {
         results.push({ ...recommendation, confidence: rec.confidence });
