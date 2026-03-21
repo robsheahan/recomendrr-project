@@ -180,18 +180,20 @@ export async function POST(request: NextRequest) {
   for (const rec of llmResponse.recommendations) {
     try {
       const searchResults = await searchByCategory(category, rec.title);
-      const match = searchResults.find(
-        (s) =>
-          s.title.toLowerCase() === rec.title.toLowerCase() ||
-          s.title.toLowerCase().includes(rec.title.toLowerCase())
-      ) || searchResults[0];
+      // Try exact match, then partial match, then first result
+      const recTitle = rec.title.toLowerCase();
+      const match =
+        searchResults.find((s) => s.title.toLowerCase() === recTitle) ||
+        searchResults.find((s) => s.title.toLowerCase().includes(recTitle)) ||
+        searchResults.find((s) => recTitle.includes(s.title.toLowerCase())) ||
+        searchResults[0];
 
       if (!match) continue;
 
-      // Quality gate
+      // Quality gate — only filter out genuinely bad items (below 5.0)
       if (
         match.vote_count >= MIN_VOTE_COUNT &&
-        match.rating < MIN_RATING_THRESHOLD
+        match.rating < 5.0
       ) {
         continue;
       }
