@@ -22,6 +22,11 @@ const SEARCHABLE_CATEGORIES: MediaCategory[] = [
   'fiction_books', 'nonfiction_books', 'podcasts', 'music_artists',
 ];
 
+interface ExistingRating {
+  external_id: string;
+  score: number;
+}
+
 export function SearchAndRate() {
   const [category, setCategory] = useState<MediaCategory>('movies');
   const [query, setQuery] = useState('');
@@ -32,7 +37,23 @@ export function SearchAndRate() {
   const [selectedStar, setSelectedStar] = useState(0);
   const [rating, setRating] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
+  const [existingRatings, setExistingRatings] = useState<Map<string, number>>(new Map());
   const debounceRef = useRef<NodeJS.Timeout>(undefined);
+
+  // Fetch existing ratings on mount and when category changes
+  useEffect(() => {
+    fetch(`/api/ratings?category=${category}`)
+      .then((res) => res.json())
+      .then((data) => {
+        const map = new Map<string, number>();
+        for (const r of data.ratings || []) {
+          if (r.item?.external_id) {
+            map.set(r.item.external_id, r.score);
+          }
+        }
+        setExistingRatings(map);
+      });
+  }, [category, success]);
 
   useEffect(() => {
     if (query.length < 2) {
@@ -146,7 +167,9 @@ export function SearchAndRate() {
                 )}
               </h4>
               <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-                Rate it:
+                {existingRatings.has(selectedItem.external_id)
+                  ? `Rated ${existingRatings.get(selectedItem.external_id)}/5 — update?`
+                  : 'Rate it:'}
               </p>
               <div className="mt-1 flex items-center gap-1">
                 {[1, 2, 3, 4, 5].map((star) => {
@@ -196,7 +219,8 @@ export function SearchAndRate() {
               onClick={() => {
                 setSelectedItem(item);
                 setHoveredStar(0);
-                setSelectedStar(0);
+                const existing = existingRatings.get(item.external_id);
+                setSelectedStar(existing || 0);
               }}
               className="flex w-full items-center gap-3 p-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
             >
@@ -228,6 +252,12 @@ export function SearchAndRate() {
                   </p>
                 )}
               </div>
+              {existingRatings.has(item.external_id) && (
+                <span className="shrink-0 text-xs text-amber-500">
+                  {'★'.repeat(existingRatings.get(item.external_id)!)}
+                  <span className="opacity-30">{'★'.repeat(5 - existingRatings.get(item.external_id)!)}</span>
+                </span>
+              )}
             </button>
           ))}
         </div>
