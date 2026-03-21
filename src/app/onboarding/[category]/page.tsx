@@ -104,14 +104,7 @@ export default function CategoryOnboardingPage() {
         setHoveredStar(0);
 
         if (data.categoryComplete) {
-          const progressRes = await fetch('/api/onboarding/progress');
-          const progress = await progressRes.json();
-
-          if (progress.allComplete) {
-            router.push('/dashboard');
-          } else if (progress.nextCategory) {
-            router.push(`/onboarding/${progress.nextCategory}`);
-          }
+          router.push('/dashboard?skip_onboarding=1');
         }
       }
     } catch (err) {
@@ -130,14 +123,7 @@ export default function CategoryOnboardingPage() {
       });
 
       if (res.ok) {
-        const progressRes = await fetch('/api/onboarding/progress');
-        const progress = await progressRes.json();
-
-        if (progress.allComplete || !progress.nextCategory) {
-          router.push('/dashboard');
-        } else {
-          router.push(`/onboarding/${progress.nextCategory}`);
-        }
+        router.push('/dashboard?skip_onboarding=1');
       }
     } catch (err) {
       console.error('Failed to skip category:', err);
