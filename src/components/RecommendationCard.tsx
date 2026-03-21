@@ -49,8 +49,13 @@ export function RecommendationCard({
     setActing(true);
     try {
       await onAction(recommendation.id, status, score);
-      setActionTaken(status === 'rated' ? `Rated ${score}/5` : status === 'saved' ? 'Saved' : status === 'dismissed' ? 'Dismissed' : 'Not interested');
-      if (status === 'dismissed' || status === 'not_interested') {
+      if (status === 'saved') {
+        setActionTaken('Saved');
+        setTimeout(() => setDismissed(true), 1000);
+      } else if (status === 'rated') {
+        setActionTaken(`Rated ${score}/5`);
+        setTimeout(() => setDismissed(true), 1000);
+      } else {
         setDismissed(true);
       }
     } finally {
@@ -67,6 +72,21 @@ export function RecommendationCard({
 
   if (dismissed) {
     return null;
+  }
+
+  if (actionTaken) {
+    return (
+      <div className="flex items-center justify-center rounded-xl border border-zinc-200 bg-white py-6 dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="text-center">
+          <span className="text-2xl">
+            {actionTaken.startsWith('Rated') ? '★' : '✓'}
+          </span>
+          <p className="mt-1 text-sm font-medium text-zinc-600 dark:text-zinc-400">
+            {actionTaken}
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
