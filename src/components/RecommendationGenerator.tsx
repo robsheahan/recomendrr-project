@@ -361,13 +361,6 @@ export function RecommendationGenerator() {
           : 'Get Recommendations'}
       </button>
 
-      {/* Quota display */}
-      {requestsUsed !== null && requestsLimit !== null && (
-        <p className="text-xs text-zinc-500">
-          {requestsUsed} / {requestsLimit} requests used this month
-        </p>
-      )}
-
       {/* Error */}
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-400">

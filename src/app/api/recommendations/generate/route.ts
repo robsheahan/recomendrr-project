@@ -31,16 +31,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
-  // Check quota for free tier
-  if (
-    profile.tier === 'free' &&
-    profile.monthly_request_count >= (profile.monthly_request_limit ?? FREE_TIER_MONTHLY_LIMIT)
-  ) {
-    return NextResponse.json(
-      { error: 'Monthly recommendation limit reached. Upgrade to paid for unlimited.' },
-      { status: 429 }
-    );
-  }
+  // Quota check disabled for now
+  // if (
+  //   profile.tier === 'free' &&
+  //   profile.monthly_request_count >= (profile.monthly_request_limit ?? FREE_TIER_MONTHLY_LIMIT)
+  // ) {
+  //   return NextResponse.json(
+  //     { error: 'Monthly recommendation limit reached. Upgrade to paid for unlimited.' },
+  //     { status: 429 }
+  //   );
+  // }
 
   // Get user's ratings with item details (ALL categories for cross-media)
   const { data: ratings } = await supabase
