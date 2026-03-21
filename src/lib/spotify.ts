@@ -100,19 +100,18 @@ export async function searchMusicArtists(query: string) {
 }
 
 export async function getPopularMusicArtists(page = 1) {
-  // Spotify doesn't have a "popular artists" endpoint, so search by genre
-  const genres = [
-    'rock', 'pop', 'hip hop', 'electronic', 'jazz',
-    'r&b', 'indie', 'classical', 'metal', 'folk',
-    'country', 'soul', 'punk', 'blues', 'reggae',
-    'alternative',
+  // Use genre-specific queries that return well-known artists
+  const queries = [
+    'pop artist', 'rock artist', 'hip hop artist', 'r&b artist',
+    'electronic artist', 'indie artist', 'country artist', 'jazz artist',
+    'metal artist', 'folk artist', 'latin artist', 'soul artist',
   ];
-  const genre = genres[(page - 1) % genres.length];
+  const query = queries[(page - 1) % queries.length];
 
   const data = await spotifyFetch<{
     artists: { items: (SpotifyArtist | null)[] };
   }>('/search', {
-    q: `genre:${genre}`,
+    q: query,
     type: 'artist',
     limit: '10',
   });
