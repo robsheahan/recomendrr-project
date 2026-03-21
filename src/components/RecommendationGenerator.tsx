@@ -29,13 +29,56 @@ interface RecommendationItem {
   };
 }
 
-const QUICK_INTENTS = [
-  { label: 'Surprise me', value: 'Surprise me with something I would never find on my own — obscure, hidden gem, non-obvious pick' },
-  { label: 'Safe pick', value: 'Something safe and reliable I will almost certainly enjoy — well-known and broadly loved' },
-  { label: 'Feel-good', value: 'Something uplifting, warm, and feel-good — I want to feel happy after watching' },
-  { label: 'Mind-bending', value: 'Something cerebral and mind-bending that will make me think — complex plot or philosophical themes' },
-  { label: 'Edge of my seat', value: 'Something tense and gripping — I want to be on the edge of my seat the whole time' },
-  { label: 'Emotional gut-punch', value: 'Something deeply emotional that will genuinely move me — I want to feel something profound' },
+const CATEGORY_INTENTS: Record<string, { label: string; value: string }[]> = {
+  movies: [
+    { label: 'Surprise me', value: 'Surprise me with something unexpected — a film I wouldn\'t normally come across but would love based on my taste' },
+    { label: 'Safe pick', value: 'A well-known, crowd-pleasing film I\'m very likely to enjoy — popular and broadly loved' },
+    { label: 'Classic', value: 'A classic, iconic film that has stood the test of time — a must-watch from any era' },
+    { label: 'New', value: 'Something recently released — a great film from the last 1-2 years' },
+  ],
+  tv_shows: [
+    { label: 'Surprise me', value: 'Surprise me with a show I wouldn\'t normally come across but would love based on my taste' },
+    { label: 'Safe pick', value: 'A well-known, binge-worthy show I\'m very likely to enjoy — popular and broadly loved' },
+    { label: 'Classic', value: 'A classic, iconic TV show that is widely considered one of the best ever made' },
+    { label: 'New', value: 'Something recently released — a great show from the last 1-2 years' },
+  ],
+  documentaries: [
+    { label: 'Surprise me', value: 'Surprise me with a documentary on a topic I wouldn\'t normally explore but would find fascinating' },
+    { label: 'Safe pick', value: 'A well-known, highly rated documentary I\'m very likely to enjoy' },
+    { label: 'Classic', value: 'A landmark documentary that is widely considered essential viewing' },
+    { label: 'New', value: 'A great documentary released in the last 1-2 years' },
+  ],
+  fiction_books: [
+    { label: 'Surprise me', value: 'Surprise me with a novel I wouldn\'t normally pick up but would love based on my taste' },
+    { label: 'Safe pick', value: 'A widely loved, bestselling novel I\'m very likely to enjoy' },
+    { label: 'Classic', value: 'A classic, essential work of fiction that has stood the test of time' },
+    { label: 'New', value: 'A great novel published in the last 1-2 years' },
+  ],
+  nonfiction_books: [
+    { label: 'Surprise me', value: 'Surprise me with a non-fiction book on a topic I wouldn\'t normally explore but would find fascinating' },
+    { label: 'Safe pick', value: 'A widely loved, bestselling non-fiction book I\'m very likely to enjoy' },
+    { label: 'Classic', value: 'A classic, essential non-fiction book that is widely considered a must-read' },
+    { label: 'New', value: 'A great non-fiction book published in the last 1-2 years' },
+  ],
+  podcasts: [
+    { label: 'Surprise me', value: 'Surprise me with a podcast I wouldn\'t normally discover but would love based on my interests' },
+    { label: 'Safe pick', value: 'A hugely popular, well-known podcast I\'m very likely to enjoy' },
+    { label: 'Classic', value: 'A podcast that is widely considered one of the best and most iconic of all time' },
+    { label: 'New', value: 'A great podcast that has launched or had a standout season in the last 1-2 years' },
+  ],
+  music_artists: [
+    { label: 'Surprise me', value: 'Surprise me with an artist I wouldn\'t normally listen to but would love based on my taste' },
+    { label: 'Safe pick', value: 'A hugely popular, well-known artist I\'m very likely to enjoy' },
+    { label: 'Classic', value: 'A legendary, iconic artist who is widely considered one of the greatest of all time' },
+    { label: 'New', value: 'An exciting artist who has emerged or had a breakthrough in the last 1-2 years' },
+  ],
+};
+
+const DEFAULT_INTENTS = [
+  { label: 'Surprise me', value: 'Surprise me with something unexpected I wouldn\'t normally come across' },
+  { label: 'Safe pick', value: 'Something well-known and broadly loved I\'m very likely to enjoy' },
+  { label: 'Classic', value: 'A classic that has stood the test of time — widely considered essential' },
+  { label: 'New', value: 'Something great from the last 1-2 years' },
 ];
 
 export function RecommendationGenerator() {
@@ -87,6 +130,7 @@ export function RecommendationGenerator() {
   useEffect(() => {
     if (!selectedCategory) return;
     setSelectedGenre('');
+    setSelectedIntent('');
     fetch(`/api/genres?category=${selectedCategory}`)
       .then((res) => res.json())
       .then((data) => setGenres(data.genres || []))
@@ -261,22 +305,25 @@ export function RecommendationGenerator() {
             onClick={() => setIntentMode(intentMode === 'quick' ? 'custom' : 'quick')}
             className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
           >
-            {intentMode === 'quick' ? 'Or describe it yourself' : 'Quick select'}
+            {intentMode === 'quick' ? 'Describe it yourself' : 'Quick select'}
           </button>
         </div>
 
         {intentMode === 'quick' ? (
           <div className="flex flex-wrap gap-2">
-            {QUICK_INTENTS.map((qi) => (
+            {(selectedCategory
+              ? CATEGORY_INTENTS[selectedCategory] || DEFAULT_INTENTS
+              : DEFAULT_INTENTS
+            ).map((qi) => (
               <button
                 key={qi.label}
                 onClick={() =>
                   setSelectedIntent(selectedIntent === qi.value ? '' : qi.value)
                 }
-                className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`rounded-full px-3.5 py-2 text-xs font-medium transition-colors ${
                   selectedIntent === qi.value
                     ? 'bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900'
-                    : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                    : 'border border-zinc-200 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800'
                 }`}
               >
                 {qi.label}
@@ -287,9 +334,9 @@ export function RecommendationGenerator() {
           <textarea
             value={customIntent}
             onChange={(e) => setCustomIntent(e.target.value)}
-            placeholder="e.g. &quot;I just finished an intense thriller and want something gentle and beautiful to reset&quot; or &quot;Something to watch with my partner who hates horror but loves suspense&quot;"
+            placeholder="Describe what you're looking for..."
             rows={2}
-            className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+            className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
           />
         )}
       </div>
