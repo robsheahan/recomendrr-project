@@ -169,18 +169,21 @@ export async function searchPodcasts(query: string) {
 }
 
 export async function getPopularPodcasts(page = 1) {
-  const topics = [
-    'true crime podcast', 'comedy podcast', 'news podcast',
-    'science podcast', 'history podcast', 'business podcast',
-    'technology podcast', 'culture podcast', 'storytelling podcast',
-    'interview podcast', 'politics podcast', 'health podcast',
+  // Use broad queries that return well-known, recognisable podcasts
+  const queries = [
+    'podcast',
+    'top podcast',
+    'best podcast',
+    'popular podcast',
+    'true crime podcast',
+    'comedy podcast',
   ];
-  const topic = topics[(page - 1) % topics.length];
+  const query = queries[(page - 1) % queries.length];
 
   const data = await spotifyFetch<{
     shows: { items: (SpotifyShow | null)[] };
   }>('/search', {
-    q: topic,
+    q: query,
     type: 'show',
     limit: '10',
     market: 'AU',
