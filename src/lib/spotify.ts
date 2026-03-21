@@ -103,11 +103,10 @@ export async function searchMusicArtists(query: string) {
 }
 
 export async function getPopularMusicArtists(page = 1) {
-  // Use genre-specific queries that return well-known artists
   const queries = [
-    'pop artist', 'rock artist', 'hip hop artist', 'r&b artist',
-    'electronic artist', 'indie artist', 'country artist', 'jazz artist',
-    'metal artist', 'folk artist', 'latin artist', 'soul artist',
+    'genre:pop', 'genre:rock', 'genre:r&b', 'genre:electronic',
+    'genre:"indie rock"', 'genre:country', 'genre:metal', 'genre:folk',
+    'genre:latin', 'genre:classical',
   ];
   const query = queries[(page - 1) % queries.length];
 
