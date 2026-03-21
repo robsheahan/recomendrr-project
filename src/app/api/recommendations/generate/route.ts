@@ -314,7 +314,17 @@ export async function POST(request: NextRequest) {
         itemId = newItem.id;
       }
 
-      // Check if this item was already recommended recently (skip duplicates within session)
+      // Skip items the user has already rated
+      const { data: existingRating } = await supabase
+        .from('ratings')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('item_id', itemId)
+        .single();
+
+      if (existingRating) continue;
+
+      // Skip items already recommended in this batch or still pending
       const { data: recentRec } = await supabase
         .from('recommendations')
         .select('id')
