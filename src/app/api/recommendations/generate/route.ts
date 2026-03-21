@@ -262,6 +262,8 @@ export async function POST(request: NextRequest) {
   const results = [];
 
   for (const rec of llmResponse.recommendations) {
+    // Stop once we have 3 valid recommendations
+    if (results.length >= 3) break;
     try {
       const searchResults = await searchByCategory(category, rec.title);
       const recTitle = rec.title.toLowerCase();
