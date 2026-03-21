@@ -260,6 +260,7 @@ export function RecommendationCard({
                       onClick={() => {
                         handleFeedback('bad', opt.value);
                         setShowFeedbackReason(false);
+                        setDismissed(true);
                       }}
                       className="rounded-full border border-zinc-200 px-2.5 py-1 text-xs text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
                     >
@@ -267,7 +268,10 @@ export function RecommendationCard({
                     </button>
                   ))}
                   <button
-                    onClick={() => setShowFeedbackReason(false)}
+                    onClick={() => {
+                      setShowFeedbackReason(false);
+                      setDismissed(true);
+                    }}
                     className="px-2 py-1 text-xs text-zinc-400"
                   >
                     Skip
