@@ -260,11 +260,35 @@ export async function POST(request: NextRequest) {
   // --- Process recommendations ---
   const batchId = crypto.randomUUID();
   const results = [];
+  const usedTitles = new Set<string>(); // Dedup within this batch
+  const usedExternalIds = new Set<string>();
+
+  // Get ALL previously recommended item titles for this user + category
+  const { data: allPrevRecs } = await supabase
+    .from('recommendations')
+    .select('item:items(title, external_id, category)')
+    .eq('user_id', user.id);
+
+  const prevRecTitles = new Set(
+    (allPrevRecs || [])
+      .filter((r) => {
+        const item = r.item as unknown as { category: string };
+        return item?.category === category;
+      })
+      .map((r) => (r.item as unknown as { title: string })?.title?.toLowerCase())
+      .filter(Boolean)
+  );
 
   for (const rec of llmResponse.recommendations) {
     // Stop once we have 3 valid recommendations
     if (results.length >= 3) break;
     try {
+      // Skip if we already have this title in this batch
+      if (usedTitles.has(rec.title.toLowerCase())) continue;
+
+      // Skip if this was previously recommended
+      if (prevRecTitles.has(rec.title.toLowerCase())) continue;
+
       const searchResults = await searchByCategory(category, rec.title);
       const recTitle = rec.title.toLowerCase();
       const match =
@@ -274,6 +298,7 @@ export async function POST(request: NextRequest) {
         searchResults[0];
 
       if (!match) continue;
+      if (usedExternalIds.has(match.external_id)) continue;
 
       if (match.vote_count >= 50 && match.rating < 5.0) continue;
 
@@ -353,6 +378,8 @@ export async function POST(request: NextRequest) {
 
       if (recommendation) {
         results.push({ ...recommendation, confidence: rec.confidence });
+        usedTitles.add(match.title.toLowerCase());
+        usedExternalIds.add(match.external_id);
       }
     } catch (err) {
       console.error('Error processing recommendation:', err);
