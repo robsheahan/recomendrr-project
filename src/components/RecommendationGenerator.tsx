@@ -60,12 +60,13 @@ export function RecommendationGenerator() {
     fetch('/api/onboarding/progress')
       .then((res) => res.json())
       .then((data) => {
-        const completedCategories = (data.categories || []).filter(
-          (c: UserCategory & { ratingsCount: number }) => c.onboarding_complete
+        const availableCategories = (data.categories || []).filter(
+          (c: UserCategory & { ratingsCount: number }) =>
+            c.onboarding_complete || c.ratingsCount > 0
         );
-        setCategories(completedCategories);
-        if (completedCategories.length > 0) {
-          setSelectedCategory(completedCategories[0].category);
+        setCategories(availableCategories);
+        if (availableCategories.length > 0) {
+          setSelectedCategory(availableCategories[0].category);
         }
       });
 
