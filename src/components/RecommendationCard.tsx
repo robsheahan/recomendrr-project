@@ -34,7 +34,6 @@ export function RecommendationCard({
   onFeedback,
 }: RecommendationCardProps) {
   const [acting, setActing] = useState(false);
-  const [showRating, setShowRating] = useState(false);
   const [hoveredStar, setHoveredStar] = useState(0);
   const [selectedStar, setSelectedStar] = useState(0);
   const [dismissed, setDismissed] = useState(false);
@@ -47,21 +46,18 @@ export function RecommendationCard({
 
   async function handleAction(status: string, score?: number) {
     setActing(true);
+    setActionTaken(status === 'saved' ? 'Saving...' : status === 'rated' ? 'Saving...' : null);
     try {
       await onAction(recommendation.id, status, score);
-      if (status === 'saved') {
-        setActionTaken('Saved');
-        setTimeout(() => setDismissed(true), 1000);
-      } else if (status === 'rated') {
-        setActionTaken(`Rated ${score}/5`);
+      if (status === 'saved' || status === 'rated') {
+        const label = score ? `Rated ${score}/5` : 'Saved';
+        setActionTaken(label);
         setTimeout(() => setDismissed(true), 1000);
       } else {
         setDismissed(true);
       }
     } finally {
       setActing(false);
-      setShowRating(false);
-      setSelectedStar(0);
     }
   }
 
@@ -196,71 +192,52 @@ export function RecommendationCard({
 
             <div className="mx-1 h-4 w-px bg-zinc-200 dark:bg-zinc-700" />
 
-            {/* Actions */}
-            {showRating ? (
-              <div className="flex items-center gap-1">
-                {[1, 2, 3, 4, 5].map((star) => {
-                  const filled = star <= (selectedStar || hoveredStar);
-                  return (
-                    <button
-                      key={star}
-                      onClick={() => setSelectedStar(star)}
-                      onMouseEnter={() => !selectedStar && setHoveredStar(star)}
-                      onMouseLeave={() => !selectedStar && setHoveredStar(0)}
-                      disabled={acting}
-                      className="p-0.5 text-lg transition-transform hover:scale-110"
-                    >
-                      <span className={filled ? 'text-amber-500 opacity-100' : 'opacity-30'}>
-                        ★
-                      </span>
-                    </button>
-                  );
-                })}
-                {selectedStar > 0 && (
+            {/* Star rating */}
+            <div className="flex items-center gap-0.5">
+              {[1, 2, 3, 4, 5].map((star) => {
+                const filled = star <= (selectedStar || hoveredStar);
+                return (
                   <button
-                    onClick={() => handleAction('rated', selectedStar)}
+                    key={star}
+                    onClick={() => setSelectedStar(selectedStar === star ? 0 : star)}
+                    onMouseEnter={() => !selectedStar && setHoveredStar(star)}
+                    onMouseLeave={() => !selectedStar && setHoveredStar(0)}
                     disabled={acting}
-                    className="ml-1 rounded bg-zinc-900 px-2 py-0.5 text-xs font-medium text-white dark:bg-zinc-50 dark:text-zinc-900"
+                    className="p-0.5 text-lg transition-transform hover:scale-110"
                   >
-                    Submit
+                    <span className={filled ? 'text-amber-500 opacity-100' : 'opacity-30'}>
+                      ★
+                    </span>
                   </button>
-                )}
-                <button
-                  onClick={() => {
-                    setShowRating(false);
-                    setSelectedStar(0);
-                    setHoveredStar(0);
-                  }}
-                  className="ml-1 text-xs text-zinc-400 hover:text-zinc-600"
-                >
-                  ✕
-                </button>
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  onClick={() => setShowRating(true)}
-                  disabled={acting}
-                  className="rounded-lg bg-zinc-900 px-3 py-1 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
-                >
-                  Already seen it — rate
-                </button>
-                <button
-                  onClick={() => handleAction('saved')}
-                  disabled={acting}
-                  className="rounded-lg border border-zinc-200 px-3 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                >
-                  Save
-                </button>
-                <button
-                  onClick={() => handleAction('dismissed')}
-                  disabled={acting}
-                  className="rounded-lg px-3 py-1 text-xs text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700 disabled:opacity-50 dark:hover:bg-zinc-800"
-                >
-                  Dismiss
-                </button>
-              </div>
-            )}
+                );
+              })}
+            </div>
+
+            <div className="mx-1 h-4 w-px bg-zinc-200 dark:bg-zinc-700" />
+
+            {/* Actions */}
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                onClick={() => {
+                  if (selectedStar > 0) {
+                    handleAction('rated', selectedStar);
+                  } else {
+                    handleAction('saved');
+                  }
+                }}
+                disabled={acting}
+                className="rounded-lg bg-zinc-900 px-3 py-1 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+              >
+                {acting ? 'Saving...' : selectedStar > 0 ? `Save (${selectedStar}/5)` : 'Save'}
+              </button>
+              <button
+                onClick={() => handleAction('dismissed')}
+                disabled={acting}
+                className="rounded-lg px-3 py-1 text-xs text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700 disabled:opacity-50 dark:hover:bg-zinc-800"
+              >
+                Dismiss
+              </button>
+            </div>
           </div>
         </div>
       </div>
