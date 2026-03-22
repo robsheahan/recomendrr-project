@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { searchByCategory } from '@/lib/tmdb';
+import { searchLocalItems } from '@/lib/local-search';
 
 export async function GET(
   request: NextRequest,
@@ -21,8 +22,29 @@ export async function GET(
   }
 
   try {
-    const results = await searchByCategory(category, query);
-    return NextResponse.json({ results: results.slice(0, 10) });
+    // Step 1: Search local database first (fast)
+    const localResults = await searchLocalItems(supabase, query, category, 10);
+
+    // Step 2: If we have enough local results, return them
+    if (localResults.length >= 5) {
+      return NextResponse.json({ results: localResults.slice(0, 10) });
+    }
+
+    // Step 3: Supplement with external API results
+    const apiResults = await searchByCategory(category, query);
+
+    // Deduplicate: prefer local results (they have richer metadata)
+    const localTitles = new Set(localResults.map((r) => r.title.toLowerCase()));
+    const localExternalIds = new Set(localResults.map((r) => r.external_id));
+
+    const newApiResults = apiResults.filter(
+      (r) =>
+        !localTitles.has(r.title.toLowerCase()) &&
+        !localExternalIds.has(r.external_id)
+    );
+
+    const combined = [...localResults, ...newApiResults].slice(0, 10);
+    return NextResponse.json({ results: combined });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('Search error:', category, query, message);
