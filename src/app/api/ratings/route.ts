@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('ratings')
-    .select('*, item:items(*)')
+    .select('*, item:items!inner(*)')
     .eq('user_id', user.id)
     .order('updated_at', { ascending: false });
 
@@ -27,7 +27,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ratings: data });
+  // Filter out any ratings with null items
+  const validRatings = (data || []).filter((r) => r.item != null);
+
+  return NextResponse.json({ ratings: validRatings });
 }
 
 export async function POST(request: NextRequest) {
