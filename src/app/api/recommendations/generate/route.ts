@@ -389,39 +389,78 @@ export async function POST(request: NextRequest) {
 
       if (recentRec) continue;
 
-      // Fetch OMDB ratings for movies/TV/docs (skip for music/books/podcasts)
-      let qualityScore = match.rating || 5; // Default to TMDB rating or 5
+      // Fetch quality scores based on category
+      let qualityScore = match.rating || 5;
 
-      if (isTmdbCategory && !existingMetadata.imdb_rating) {
-        try {
-          const omdb = await fetchOMDBByTitle(match.title, match.year);
-          if (omdb) {
-            const composite = computeQualityScore(omdb);
-            if (composite) qualityScore = composite;
+      if (isTmdbCategory) {
+        // Movies/TV/Docs: use OMDB for IMDB + RT scores
+        if (existingMetadata.imdb_rating) {
+          qualityScore = existingMetadata.imdb_rating as number;
+        } else {
+          try {
+            const omdb = await fetchOMDBByTitle(match.title, match.year);
+            if (omdb) {
+              const composite = computeQualityScore(omdb);
+              if (composite) qualityScore = composite;
 
-            // Store OMDB data on the item
-            await supabase
-              .from('items')
-              .update({
-                metadata: {
-                  ...existingMetadata,
-                  tmdb_rating: match.rating,
-                  tmdb_vote_count: match.vote_count,
-                  imdb_rating: omdb.imdbRating,
-                  imdb_votes: omdb.imdbVotes,
-                  rotten_tomatoes: omdb.rottenTomatoes,
-                  metascore: omdb.metascore,
-                  imdb_id: omdb.imdbId,
-                },
-              })
-              .eq('id', itemId);
+              await supabase
+                .from('items')
+                .update({
+                  metadata: {
+                    ...existingMetadata,
+                    tmdb_rating: match.rating,
+                    tmdb_vote_count: match.vote_count,
+                    imdb_rating: omdb.imdbRating,
+                    imdb_votes: omdb.imdbVotes,
+                    rotten_tomatoes: omdb.rottenTomatoes,
+                    metascore: omdb.metascore,
+                    imdb_id: omdb.imdbId,
+                  },
+                })
+                .eq('id', itemId);
+            }
+          } catch {
+            // OMDB fetch failed, continue with TMDB rating
           }
-        } catch {
-          // OMDB fetch failed, continue with TMDB rating
         }
-      } else if (existingMetadata.imdb_rating) {
-        // Use cached IMDB rating
-        qualityScore = existingMetadata.imdb_rating as number;
+      } else if (category === 'fiction_books' || category === 'nonfiction_books') {
+        // Books: use Google Books averageRating (already in match.rating)
+        qualityScore = match.rating || 0;
+        // Also check cached metadata
+        if (existingMetadata.google_rating) {
+          qualityScore = existingMetadata.google_rating as number;
+        } else if (match.rating > 0) {
+          await supabase
+            .from('items')
+            .update({
+              metadata: {
+                ...existingMetadata,
+                google_rating: match.rating,
+                google_vote_count: match.vote_count,
+              },
+            })
+            .eq('id', itemId);
+        }
+      } else if (category === 'music_artists') {
+        // Music: use Spotify popularity (0-100, convert to 0-10)
+        const popularity = (match.metadata as Record<string, unknown>)?.popularity as number || 0;
+        qualityScore = popularity / 10;
+        if (!existingMetadata.spotify_popularity && popularity > 0) {
+          await supabase
+            .from('items')
+            .update({
+              metadata: {
+                ...existingMetadata,
+                spotify_popularity: popularity,
+              },
+            })
+            .eq('id', itemId);
+        } else if (existingMetadata.spotify_popularity) {
+          qualityScore = (existingMetadata.spotify_popularity as number) / 10;
+        }
+      } else if (category === 'podcasts') {
+        // Podcasts: no reliable quality signal, default score
+        qualityScore = 7; // Neutral — let LLM ordering decide
       }
 
       candidates.push({ rec, itemId, match, qualityScore });
