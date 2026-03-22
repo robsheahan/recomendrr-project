@@ -66,8 +66,9 @@ function mapVolume(v: GoogleBooksVolume, category: 'fiction_books' | 'nonfiction
 // --- Fiction Books ---
 
 export async function searchFictionBooks(query: string) {
+  // Search without subject filter first for better coverage
   const data = await booksFetch<{ items?: GoogleBooksVolume[] }>('/volumes', {
-    q: `${query}+subject:fiction`,
+    q: query,
     maxResults: '20',
     orderBy: 'relevance',
     langRestrict: 'en',
@@ -98,7 +99,7 @@ export async function getPopularFictionBooks(page = 1) {
 
 export async function searchNonfictionBooks(query: string) {
   const data = await booksFetch<{ items?: GoogleBooksVolume[] }>('/volumes', {
-    q: `${query}+subject:nonfiction`,
+    q: query,
     maxResults: '20',
     orderBy: 'relevance',
     langRestrict: 'en',
