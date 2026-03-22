@@ -208,7 +208,7 @@ export default function CategoryOnboardingPage() {
                 : 'bg-zinc-200 text-zinc-600 hover:bg-zinc-300 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
             }`}
           >
-            {ratingsCount > 0 ? 'Done' : 'Skip'}
+            Skip
           </button>
         </div>
       </div>
