@@ -37,9 +37,29 @@ export default function RatingsPage() {
   const [ratings, setRatings] = useState<RatingItem[]>([]);
   const [filter, setFilter] = useState<MediaCategory | 'all'>('all');
   const [loading, setLoading] = useState(true);
+  const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
+
+  // Fetch counts for all categories on mount
+  useEffect(() => {
+    fetch('/api/ratings')
+      .then((res) => res.json())
+      .then((data) => {
+        const counts: Record<string, number> = {};
+        let total = 0;
+        for (const r of data.ratings || []) {
+          if (r.item?.category) {
+            counts[r.item.category] = (counts[r.item.category] || 0) + 1;
+            total++;
+          }
+        }
+        counts['all'] = total;
+        setCategoryCounts(counts);
+      });
+  }, []);
 
   useEffect(() => {
     const params = filter !== 'all' ? `?category=${filter}` : '';
+    setLoading(true);
     fetch(`/api/ratings${params}`)
       .then((res) => res.json())
       .then((data) => {
@@ -76,23 +96,29 @@ export default function RatingsPage() {
       </div>
 
       {/* Filter tabs */}
-      <div className="flex gap-1 rounded-lg bg-zinc-100 p-1 dark:bg-zinc-900">
-        {FILTER_CATEGORIES.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => {
-              setFilter(cat);
-              setLoading(true);
-            }}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              filter === cat
-                ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-50'
-                : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200'
-            }`}
-          >
-            {cat === 'all' ? 'All' : CATEGORY_LABELS[cat]}
-          </button>
-        ))}
+      <div className="flex flex-wrap gap-1.5">
+        {FILTER_CATEGORIES.map((cat) => {
+          const count = categoryCounts[cat] || 0;
+          if (cat !== 'all' && count === 0) return null;
+          return (
+            <button
+              key={cat}
+              onClick={() => setFilter(cat)}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                filter === cat
+                  ? 'bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900'
+                  : 'border border-zinc-200 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800'
+              }`}
+            >
+              {cat === 'all' ? 'All' : CATEGORY_LABELS[cat]}
+              {count > 0 && (
+                <span className={`ml-1.5 ${filter === cat ? 'opacity-70' : 'opacity-50'}`}>
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Ratings list */}
