@@ -260,7 +260,7 @@ export function formatTasteProfileForLLM(profile: TasteProfile): string {
 
   // --- Request ---
   const genreClause = profile.genre ? ` in the ${profile.genre} genre` : '';
-  lines.push(`Recommend 8 ${label}${genreClause} for this user. Provide exactly 8 different recommendations.`);
+  lines.push(`Recommend 12 ${label}${genreClause} for this user. Provide exactly 12 different recommendations. Ensure variety — mix different sub-genres, eras, and styles.`);
   lines.push('Return as JSON: {"recommendations": [{"title": "...", "year": 2020, "reason": "...", "confidence": "high"}]}');
 
   return lines.join('\n');

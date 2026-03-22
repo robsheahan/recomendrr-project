@@ -263,11 +263,13 @@ export async function POST(request: NextRequest) {
   const usedTitles = new Set<string>(); // Dedup within this batch
   const usedExternalIds = new Set<string>();
 
-  // Get ALL previously recommended item titles for this user + category
+  // Get recently recommended item titles (last 30 days) for this user + category
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const { data: allPrevRecs } = await supabase
     .from('recommendations')
     .select('item:items(title, external_id, category)')
-    .eq('user_id', user.id);
+    .eq('user_id', user.id)
+    .gt('created_at', thirtyDaysAgo);
 
   const prevRecTitles = new Set(
     (allPrevRecs || [])
@@ -299,8 +301,6 @@ export async function POST(request: NextRequest) {
 
       if (!match) continue;
       if (usedExternalIds.has(match.external_id)) continue;
-
-      if (match.vote_count >= 50 && match.rating < 5.0) continue;
 
       // Upsert item
       const { data: existingItem } = await supabase
