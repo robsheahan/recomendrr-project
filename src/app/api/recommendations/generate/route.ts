@@ -10,6 +10,11 @@ import {
   generateTasteFingerprint,
   generateMissAnalysis,
 } from '@/lib/taste-fingerprint';
+import {
+  computeCollaborativeSignals,
+  computeAllSimilarities,
+  formatCollaborativeSignals,
+} from '@/lib/collaborative';
 
 export async function POST(request: NextRequest) {
   try {
@@ -181,6 +186,20 @@ export async function POST(request: NextRequest) {
     };
   }
 
+  // --- Collaborative signals ---
+  let collaborativeSection: string | null = null;
+  try {
+    // Recompute similarities if fingerprint was regenerated
+    if (needsRegen) {
+      await computeAllSimilarities(supabase, user.id);
+    }
+    const signals = await computeCollaborativeSignals(supabase, user.id, category, 10);
+    collaborativeSection = formatCollaborativeSignals(signals);
+  } catch (err) {
+    console.error('Collaborative signals error:', err);
+    // Non-blocking — continue without collaborative data
+  }
+
   // --- Exclusion lists ---
   const { data: notInterestedRecs } = await supabase
     .from('recommendations')
@@ -237,6 +256,7 @@ export async function POST(request: NextRequest) {
     crossCategoryPatterns,
     distribution,
     calibration,
+    collaborativeSection,
   );
 
   // --- Generate recommendations ---

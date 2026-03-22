@@ -24,6 +24,7 @@ export interface TasteProfile {
   previouslyRecommended: string[];
   missAnalysis: MissAnalysis | null;
   calibration: { high: number | null; medium: number | null; low: number | null; total: number } | null;
+  collaborativeSection: string | null;
 }
 
 export function buildTasteProfile(
@@ -40,6 +41,7 @@ export function buildTasteProfile(
   crossCategoryPatterns: string[] | null = null,
   distribution: RatingDistribution | null = null,
   calibration: { high: number | null; medium: number | null; low: number | null; total: number } | null = null,
+  collaborativeSection: string | null = null,
 ): TasteProfile {
   const categoryRatings = ratings.filter((r) => r.item.category === category);
 
@@ -82,6 +84,7 @@ export function buildTasteProfile(
     previouslyRecommended: previouslyRecommendedTitles,
     missAnalysis,
     calibration,
+    collaborativeSection,
   };
 }
 
@@ -183,6 +186,12 @@ export function formatTasteProfileForLLM(profile: TasteProfile): string {
   // --- Genre constraint ---
   if (profile.genre) {
     lines.push(`GENRE CONSTRAINT: All 3 recommendations MUST be ${profile.genre}. Non-negotiable.`);
+    lines.push('');
+  }
+
+  // --- Collaborative signals ---
+  if (profile.collaborativeSection) {
+    lines.push(profile.collaborativeSection);
     lines.push('');
   }
 

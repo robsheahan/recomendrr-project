@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { updateItemReputation } from '@/lib/collaborative';
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
   // Verify ownership
   const { data: rec } = await supabase
     .from('recommendations')
-    .select('id')
+    .select('id, item_id')
     .eq('id', recommendationId)
     .eq('user_id', user.id)
     .single();
@@ -46,6 +47,9 @@ export async function POST(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: 'Failed to save feedback' }, { status: 500 });
   }
+
+  // Update item reputation with this feedback (non-blocking)
+  updateItemReputation(supabase, rec.item_id).catch(console.error);
 
   return NextResponse.json({ success: true });
 }
