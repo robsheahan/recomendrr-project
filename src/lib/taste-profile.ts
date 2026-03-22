@@ -5,6 +5,7 @@ import {
   MissAnalysis,
   computeGenreAverages,
 } from './taste-fingerprint';
+import { computeCreatorAffinities, formatCreatorAffinities } from './creator-affinity';
 
 export interface TasteProfile {
   category: string;
@@ -25,6 +26,7 @@ export interface TasteProfile {
   missAnalysis: MissAnalysis | null;
   calibration: { high: number | null; medium: number | null; low: number | null; total: number } | null;
   collaborativeSection: string | null;
+  creatorAffinitySection: string | null;
 }
 
 export function buildTasteProfile(
@@ -43,6 +45,9 @@ export function buildTasteProfile(
   calibration: { high: number | null; medium: number | null; low: number | null; total: number } | null = null,
   collaborativeSection: string | null = null,
 ): TasteProfile {
+  // Compute creator affinities
+  const creatorAffinities = computeCreatorAffinities(ratings, category);
+  const creatorAffinitySection = formatCreatorAffinities(creatorAffinities, category);
   const categoryRatings = ratings.filter((r) => r.item.category === category);
 
   // Cross-media highlights: top-rated items from OTHER categories
@@ -85,6 +90,7 @@ export function buildTasteProfile(
     missAnalysis,
     calibration,
     collaborativeSection,
+    creatorAffinitySection,
   };
 }
 
@@ -189,6 +195,12 @@ export function formatTasteProfileForLLM(profile: TasteProfile): string {
     lines.push('');
   }
 
+  // --- Creator affinities ---
+  if (profile.creatorAffinitySection) {
+    lines.push(profile.creatorAffinitySection);
+    lines.push('');
+  }
+
   // --- Collaborative signals ---
   if (profile.collaborativeSection) {
     lines.push(profile.collaborativeSection);
@@ -198,32 +210,32 @@ export function formatTasteProfileForLLM(profile: TasteProfile): string {
   // --- Category ratings (TIERED) ---
   lines.push(`CATEGORY RATINGS [${label}]:`);
 
-  if (totalCategoryRatings <= 25) {
-    // TIER 1: List everything
+  if (totalCategoryRatings <= 100) {
+    // TIER 1: List everything (up to 100 ratings)
     if (profile.highlyRated.length > 0)
       lines.push(`Loved: ${profile.highlyRated.map((r) => `${r.title} (${r.score})`).join(', ')}`);
     if (profile.moderatelyRated.length > 0)
       lines.push(`Liked: ${profile.moderatelyRated.map((r) => r.title).join(', ')}`);
     if (profile.lowRated.length > 0)
       lines.push(`Disliked: ${profile.lowRated.map((r) => r.title).join(', ')}`);
-  } else if (totalCategoryRatings <= 75) {
-    // TIER 2: Top 10 + bottom 5 + genre averages
-    const topItems = profile.highlyRated.slice(0, 10);
-    const bottomItems = profile.lowRated.slice(0, 5);
+  } else if (totalCategoryRatings <= 200) {
+    // TIER 2: Top 15 + bottom 10 + genre averages
+    const topItems = profile.highlyRated.slice(0, 15);
+    const bottomItems = profile.lowRated.slice(0, 10);
     if (topItems.length > 0)
       lines.push(`Top rated: ${topItems.map((r) => `${r.title} (${r.score})`).join(', ')}`);
     if (bottomItems.length > 0)
       lines.push(`Lowest rated: ${bottomItems.map((r) => r.title).join(', ')}`);
     if (profile.genreAverages.length > 0) {
       lines.push('Genre preferences:');
-      for (const ga of profile.genreAverages.slice(0, 8)) {
+      for (const ga of profile.genreAverages.slice(0, 10)) {
         lines.push(`  ${ga.genre}: avg ${ga.avg}/5 across ${ga.count} items`);
       }
     }
   } else {
-    // TIER 3: Top 7 + bottom 5 + genre averages (prompt is shorter but denser)
-    const topItems = profile.highlyRated.slice(0, 7);
-    const bottomItems = profile.lowRated.slice(0, 5);
+    // TIER 3: Top 15 + bottom 10 + genre averages (200+ ratings)
+    const topItems = profile.highlyRated.slice(0, 15);
+    const bottomItems = profile.lowRated.slice(0, 10);
     if (topItems.length > 0)
       lines.push(`Top rated: ${topItems.map((r) => `${r.title} (${r.score})`).join(', ')}`);
     if (bottomItems.length > 0)

@@ -21,13 +21,14 @@ const SYSTEM_PROMPT = `You are an elite media recommendation concierge. You deep
 
 RECOMMENDATION STRATEGY:
 - Recommend well-known, widely loved items that match the user's taste profile. These should be titles most people have heard of — popular, acclaimed, mainstream hits
-- All 3 recommendations should be things the user is likely to enjoy. Prioritise quality and relevance over obscurity
+- All recommendations should be things the user is likely to enjoy. Prioritise quality and relevance over obscurity
 - Only recommend well-regarded items — 7+/10 on IMDB, 80%+ on Rotten Tomatoes, or equivalent critical/audience acclaim
-- If the user specifies a genre, ALL 3 recommendations must fit that genre. Non-negotiable
+- If the user specifies a genre, ALL recommendations must fit that genre. Non-negotiable
 - If the user provides a current intent or mood, prioritise that over general taste matching
-- Only push toward obscure or hidden gem picks if the user EXPLICITLY asks to be surprised or to discover something new. By default, recommend popular, recognisable titles
-- DO NOT recommend items that are obscure, hard to find, or that most people wouldn't recognise — unless the user specifically asks for that
-- CRITICAL: Never recommend items listed under "PREVIOUSLY RECOMMENDED (exclude)" — these have already been suggested. Choose DIFFERENT items every time
+- Only push toward obscure or hidden gem picks if the user EXPLICITLY asks to be surprised or to discover something new
+- CRITICAL: Never recommend items listed under "PREVIOUSLY RECOMMENDED (exclude)" — choose DIFFERENT items every time
+- Pay close attention to CREATOR AFFINITIES — if the user loves a director/author, prioritise their other work. If they dislike a creator, avoid them entirely
+- If COLLABORATIVE SIGNALS are provided, seriously consider those items — they are loved by users with verified similar taste
 
 EXPLANATION QUALITY:
 - Your explanations are the product. They must be specific and insightful
@@ -36,10 +37,23 @@ EXPLANATION QUALITY:
 - Never say "because you liked X" without explaining WHY the connection exists
 
 LEARNING FROM FEEDBACK:
-- If the user has PREVIOUS MISSES listed, analyse what went wrong and avoid repeating the same patterns
+- If the user has MISS PATTERNS listed, analyse what went wrong and avoid repeating the same patterns
 - Bad recommendation feedback means the system fundamentally misread the user's intent — adjust accordingly
 
 Return valid JSON only, no markdown formatting.`;
+
+const ANALYSIS_PROMPT = `You are a taste analyst. Given a user's detailed ratings and taste profile, write a focused recommendation strategy.
+
+Analyse the ratings deeply — look for:
+- What SPECIFIC qualities connect their highest-rated items (not just genre — tone, pacing, themes, character types, narrative structure)
+- What SPECIFIC qualities connect their lowest-rated items
+- Any creator patterns (directors/authors they consistently love or hate)
+- The gap between what they "like" (3-4 stars) and what they "love" (5 stars)
+- What would make them say "this is EXACTLY what I was looking for"
+
+Write a 3-4 sentence strategy that a recommendation engine should follow for this specific person. Be concrete, not abstract. Instead of "likes complex narratives" say "loves unreliable narrators and time-jumping storylines, but only when the emotional payoff justifies the complexity."
+
+Return as JSON: {"strategy": "your strategy here"}`;
 
 export async function generateRecommendations(
   profile: TasteProfile,
@@ -52,7 +66,8 @@ export async function generateRecommendations(
     return generateWithClaude(userMessage, conversationHistory);
   }
 
-  return generateWithOpenAI(userMessage, tier, conversationHistory);
+  // Two-step generation: analyse first, then recommend
+  return generateWithOpenAITwoStep(userMessage, conversationHistory);
 }
 
 export async function generateRefinement(
@@ -68,7 +83,7 @@ ${previousRecommendations}
 
 USER'S REFINEMENT REQUEST: "${refinementText}"
 
-Based on this feedback, provide 3 new recommendations that address their request. Keep the same JSON format.`;
+Based on this feedback, provide 12 new recommendations that address their request. Keep the same JSON format.`;
 
   const messages: ConversationMessage[] = [
     ...conversationHistory,
@@ -78,18 +93,58 @@ Based on this feedback, provide 3 new recommendations that address their request
   if (tier === 'paid' && process.env.ANTHROPIC_API_KEY) {
     return generateWithClaude(userMessage, messages);
   }
-  return generateWithOpenAI(userMessage, tier, messages);
+  return generateWithOpenAI(userMessage, messages);
 }
 
-async function generateWithOpenAI(
+// Two-step: first analyse taste deeply, then recommend based on analysis
+async function generateWithOpenAITwoStep(
   userMessage: string,
-  tier: 'free' | 'paid',
   conversationHistory: ConversationMessage[] = []
 ): Promise<LLMResponse> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY is not set');
 
-  const model = tier === 'paid' ? 'gpt-4o' : 'gpt-4o-mini';
+  // Step 1: Deep analysis with gpt-4o
+  const analysisRes = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: ANALYSIS_PROMPT },
+        { role: 'user', content: userMessage },
+      ],
+      temperature: 0.4,
+      response_format: { type: 'json_object' },
+    }),
+  });
+
+  let strategy = '';
+  if (analysisRes.ok) {
+    const analysisData = await analysisRes.json();
+    const parsed = JSON.parse(analysisData.choices[0].message.content);
+    strategy = parsed.strategy || '';
+  }
+
+  // Step 2: Generate recommendations using analysis + full profile
+  const enhancedMessage = strategy
+    ? `RECOMMENDATION STRATEGY FOR THIS USER:\n${strategy}\n\n${userMessage}`
+    : userMessage;
+
+  return generateWithOpenAI(enhancedMessage, conversationHistory);
+}
+
+async function generateWithOpenAI(
+  userMessage: string,
+  conversationHistory: ConversationMessage[] = []
+): Promise<LLMResponse> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error('OPENAI_API_KEY is not set');
+
+  const model = 'gpt-4o';
 
   const messages = [
     { role: 'system' as const, content: SYSTEM_PROMPT },
@@ -155,7 +210,7 @@ async function generateWithClaude(
     },
     body: JSON.stringify({
       model,
-      max_tokens: 1500,
+      max_tokens: 2000,
       system: SYSTEM_PROMPT,
       messages,
     }),
