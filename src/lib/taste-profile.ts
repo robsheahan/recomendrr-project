@@ -7,6 +7,7 @@ import {
 } from './taste-fingerprint';
 import { computeCreatorAffinities, formatCreatorAffinities } from './creator-affinity';
 import { analyseTagPreferences, formatTagPreferences } from './tag-analysis';
+import { formatUserTagWeights } from './tag-efficacy';
 
 export interface TasteProfile {
   category: string;
@@ -29,6 +30,7 @@ export interface TasteProfile {
   collaborativeSection: string | null;
   creatorAffinitySection: string | null;
   tagPreferencesSection: string | null;
+  tagWeightsSection: string | null;
 }
 
 export function buildTasteProfile(
@@ -46,6 +48,7 @@ export function buildTasteProfile(
   distribution: RatingDistribution | null = null,
   calibration: { high: number | null; medium: number | null; low: number | null; total: number } | null = null,
   collaborativeSection: string | null = null,
+  userTagWeights: Record<string, Record<string, number>> | null = null,
 ): TasteProfile {
   // Compute creator affinities
   const creatorAffinities = computeCreatorAffinities(ratings, category);
@@ -54,6 +57,9 @@ export function buildTasteProfile(
   // Analyse tag preferences from enriched items
   const tagPrefs = analyseTagPreferences(ratings, category);
   const tagPreferencesSection = tagPrefs ? formatTagPreferences(tagPrefs) : null;
+
+  // Format data-driven tag weights
+  const tagWeightsSection = userTagWeights ? formatUserTagWeights(userTagWeights) : null;
   const categoryRatings = ratings.filter((r) => r.item.category === category);
 
   // Cross-media highlights: top-rated items from OTHER categories
@@ -110,6 +116,7 @@ export function buildTasteProfile(
     collaborativeSection,
     creatorAffinitySection,
     tagPreferencesSection,
+    tagWeightsSection,
   };
 }
 
@@ -217,6 +224,12 @@ export function formatTasteProfileForLLM(profile: TasteProfile): string {
   // --- Tag preferences ---
   if (profile.tagPreferencesSection) {
     lines.push(profile.tagPreferencesSection);
+    lines.push('');
+  }
+
+  // --- Tag weights (data-driven) ---
+  if (profile.tagWeightsSection) {
+    lines.push(profile.tagWeightsSection);
     lines.push('');
   }
 

@@ -16,6 +16,7 @@ import {
   formatCollaborativeSignals,
 } from '@/lib/collaborative';
 import { fetchOMDBByTitle, computeQualityScore } from '@/lib/omdb';
+import { computeUserTagWeights } from '@/lib/tag-efficacy';
 
 export async function POST(request: NextRequest) {
   try {
@@ -242,6 +243,14 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // --- Compute user tag weights ---
+  let userTagWeights: Record<string, Record<string, number>> | null = null;
+  try {
+    userTagWeights = await computeUserTagWeights(supabase, user.id, category);
+  } catch {
+    // Non-blocking
+  }
+
   // --- Build taste profile ---
   const tasteProfile = buildTasteProfile(
     ratingsWithItems,
@@ -258,6 +267,7 @@ export async function POST(request: NextRequest) {
     distribution,
     calibration,
     collaborativeSection,
+    userTagWeights,
   );
 
   // --- Generate recommendations ---
