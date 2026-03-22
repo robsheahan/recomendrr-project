@@ -1,15 +1,34 @@
 import { MediaCategory } from '@/types/database';
 
-export const CATEGORY_LABELS: Record<MediaCategory, string> = {
-  fiction_books: 'Fiction Books',
-  nonfiction_books: 'Non-Fiction Books',
-  documentaries: 'Documentaries',
-  tv_shows: 'TV Shows',
+// Active categories shown in the UI
+export const ACTIVE_CATEGORIES: MediaCategory[] = [
+  'movies',
+  'tv_shows',
+  'books',
+  'podcasts',
+  'music_artists',
+];
+
+export const CATEGORY_LABELS: Record<string, string> = {
   movies: 'Movies',
+  tv_shows: 'TV Shows',
+  books: 'Books',
   podcasts: 'Podcasts',
   music_artists: 'Music Artists',
+  // Legacy
+  fiction_books: 'Books',
+  nonfiction_books: 'Books',
+  documentaries: 'Movies',
 };
 
+// Maps new categories to legacy DB values they should include when querying
+export const CATEGORY_DB_MAP: Record<string, string[]> = {
+  movies: ['movies', 'documentaries'],
+  tv_shows: ['tv_shows'],
+  books: ['books', 'fiction_books', 'nonfiction_books'],
+  podcasts: ['podcasts'],
+  music_artists: ['music_artists'],
+};
 
 export const ONBOARDING_RATINGS_REQUIRED = 15;
 export const FREE_TIER_MONTHLY_LIMIT = 10;

@@ -30,7 +30,7 @@ async function booksFetch<T>(path: string, params: Record<string, string> = {}):
     url.searchParams.set(key, value);
   }
 
-  const res = await fetch(url.toString(), { next: { revalidate: 86400 } });
+  const res = await fetch(url.toString(), { cache: 'no-store' });
   if (!res.ok) {
     throw new Error(`Google Books API error: ${res.status} ${res.statusText}`);
   }
@@ -39,19 +39,18 @@ async function booksFetch<T>(path: string, params: Record<string, string> = {}):
 
 function getBookCover(imageLinks?: { thumbnail?: string; smallThumbnail?: string }): string | null {
   if (!imageLinks) return null;
-  // Use thumbnail and upgrade to https
   const url = imageLinks.thumbnail || imageLinks.smallThumbnail;
   return url ? url.replace('http://', 'https://') : null;
 }
 
-function mapVolume(v: GoogleBooksVolume, category: 'fiction_books' | 'nonfiction_books') {
+function mapVolume(v: GoogleBooksVolume) {
   const info = v.volumeInfo;
   const year = info.publishedDate ? parseInt(info.publishedDate.slice(0, 4)) : null;
 
   return {
     external_id: v.id,
     external_source: 'google_books' as const,
-    category,
+    category: 'books' as const,
     title: info.title,
     creator: info.authors?.join(', ') || null,
     description: info.description || '',
@@ -63,25 +62,46 @@ function mapVolume(v: GoogleBooksVolume, category: 'fiction_books' | 'nonfiction
   };
 }
 
-// --- Fiction Books ---
+// --- Search (Google Books + Open Library fallback) ---
 
-export async function searchFictionBooks(query: string) {
-  // Search without subject filter first for better coverage
+export async function searchBooks(query: string) {
+  // Search Google Books first
   const data = await booksFetch<{ items?: GoogleBooksVolume[] }>('/volumes', {
     q: query,
-    maxResults: '20',
+    maxResults: '15',
     orderBy: 'relevance',
     langRestrict: 'en',
   });
 
-  return (data.items || []).map((v) => mapVolume(v, 'fiction_books'));
+  const googleResults = (data.items || []).map(mapVolume);
+
+  // If we got few results, supplement with Open Library
+  if (googleResults.length < 5) {
+    try {
+      const { searchOpenLibrary } = await import('./open-library');
+      const olResults = await searchOpenLibrary(query);
+      // Deduplicate by title
+      const googleTitles = new Set(googleResults.map((r) => r.title.toLowerCase()));
+      const newResults = olResults.filter(
+        (r: { title: string }) => !googleTitles.has(r.title.toLowerCase())
+      );
+      return [...googleResults, ...newResults].slice(0, 15);
+    } catch {
+      // Open Library failed, return what we have
+    }
+  }
+
+  return googleResults;
 }
 
-export async function getPopularFictionBooks(page = 1) {
+// --- Popular books for onboarding ---
+
+export async function getPopularBooks(page = 1) {
   const subjects = [
-    'literary fiction', 'thriller fiction', 'science fiction',
-    'fantasy fiction', 'mystery fiction', 'historical fiction',
-    'romance fiction', 'horror fiction',
+    'bestseller', 'thriller', 'science fiction', 'fantasy',
+    'mystery', 'historical fiction', 'romance', 'biography',
+    'science', 'psychology', 'history', 'philosophy',
+    'self-help', 'business', 'true crime', 'adventure',
   ];
   const subject = subjects[(page - 1) % subjects.length];
 
@@ -92,54 +112,29 @@ export async function getPopularFictionBooks(page = 1) {
     langRestrict: 'en',
   });
 
-  return (data.items || []).map((v) => mapVolume(v, 'fiction_books'));
+  return (data.items || []).map(mapVolume);
 }
 
-// --- Non-Fiction Books ---
+// --- Combined genre list ---
 
-export async function searchNonfictionBooks(query: string) {
-  const data = await booksFetch<{ items?: GoogleBooksVolume[] }>('/volumes', {
-    q: query,
-    maxResults: '20',
-    orderBy: 'relevance',
-    langRestrict: 'en',
-  });
-
-  return (data.items || []).map((v) => mapVolume(v, 'nonfiction_books'));
-}
-
-export async function getPopularNonfictionBooks(page = 1) {
-  const subjects = [
-    'science', 'history', 'biography', 'psychology',
-    'philosophy', 'business', 'politics', 'self-help',
-  ];
-  const subject = subjects[(page - 1) % subjects.length];
-
-  const data = await booksFetch<{ items?: GoogleBooksVolume[] }>('/volumes', {
-    q: `subject:${subject}`,
-    maxResults: '20',
-    orderBy: 'relevance',
-    langRestrict: 'en',
-  });
-
-  return (data.items || []).map((v) => mapVolume(v, 'nonfiction_books'));
-}
-
-// --- Genre lists ---
-
-export function getFictionGenres(): string[] {
+export function getBookGenres(): string[] {
   return [
+    // Fiction
     'Literary Fiction', 'Thriller', 'Science Fiction', 'Fantasy',
     'Mystery', 'Historical Fiction', 'Romance', 'Horror',
-    'Dystopian', 'Satire', 'Magical Realism', 'Adventure',
-  ];
-}
-
-export function getNonfictionGenres(): string[] {
-  return [
+    'Dystopian', 'Adventure', 'Magical Realism', 'Satire',
+    // Non-Fiction
     'Science', 'History', 'Biography', 'Psychology',
     'Philosophy', 'Business', 'Politics', 'Self-Help',
     'True Crime', 'Nature', 'Technology', 'Sociology',
-    'Economics', 'Memoir', 'Travel', 'Health',
+    'Economics', 'Memoir', 'Health', 'Travel',
   ];
 }
+
+// Legacy exports for backward compatibility
+export const searchFictionBooks = searchBooks;
+export const searchNonfictionBooks = searchBooks;
+export const getPopularFictionBooks = getPopularBooks;
+export const getPopularNonfictionBooks = getPopularBooks;
+export const getFictionGenres = getBookGenres;
+export const getNonfictionGenres = getBookGenres;

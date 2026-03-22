@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 const CATEGORIES = [
-  'Movies', 'TV Shows', 'Documentaries', 'Books', 'Podcasts', 'Music',
+  'Movies', 'TV Shows', 'Books', 'Podcasts', 'Music',
 ];
 
 const FEATURES = [

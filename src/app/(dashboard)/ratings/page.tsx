@@ -26,9 +26,7 @@ const FILTER_CATEGORIES: (MediaCategory | 'all')[] = [
   'all',
   'movies',
   'tv_shows',
-  'documentaries',
-  'fiction_books',
-  'nonfiction_books',
+  'books',
   'podcasts',
   'music_artists',
 ];

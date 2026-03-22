@@ -42,23 +42,11 @@ const CATEGORY_INTENTS: Record<string, { label: string; value: string }[]> = {
     { label: 'Classic', value: 'A classic, iconic TV show that is widely considered one of the best ever made' },
     { label: 'New', value: 'Something recently released — a great show from the last 1-2 years' },
   ],
-  documentaries: [
-    { label: 'Surprise me', value: 'Surprise me with a documentary on a topic I wouldn\'t normally explore but would find fascinating' },
-    { label: 'Safe pick', value: 'A well-known, highly rated documentary I\'m very likely to enjoy' },
-    { label: 'Classic', value: 'A landmark documentary that is widely considered essential viewing' },
-    { label: 'New', value: 'A great documentary released in the last 1-2 years' },
-  ],
-  fiction_books: [
-    { label: 'Surprise me', value: 'Surprise me with a novel I wouldn\'t normally pick up but would love based on my taste' },
-    { label: 'Safe pick', value: 'A widely loved, bestselling novel I\'m very likely to enjoy' },
-    { label: 'Classic', value: 'A classic, essential work of fiction that has stood the test of time' },
-    { label: 'New', value: 'A great novel published in the last 1-2 years' },
-  ],
-  nonfiction_books: [
-    { label: 'Surprise me', value: 'Surprise me with a non-fiction book on a topic I wouldn\'t normally explore but would find fascinating' },
-    { label: 'Safe pick', value: 'A widely loved, bestselling non-fiction book I\'m very likely to enjoy' },
-    { label: 'Classic', value: 'A classic, essential non-fiction book that is widely considered a must-read' },
-    { label: 'New', value: 'A great non-fiction book published in the last 1-2 years' },
+  books: [
+    { label: 'Surprise me', value: 'Surprise me with a book I wouldn\'t normally pick up but would love based on my taste' },
+    { label: 'Safe pick', value: 'A widely loved, bestselling book I\'m very likely to enjoy' },
+    { label: 'Classic', value: 'A classic, essential book that has stood the test of time — fiction or non-fiction' },
+    { label: 'New', value: 'A great book published in the last 1-2 years' },
   ],
   podcasts: [
     { label: 'Surprise me', value: 'Surprise me with a podcast I wouldn\'t normally discover but would love based on my interests' },

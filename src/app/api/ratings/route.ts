@@ -18,7 +18,13 @@ export async function GET(request: NextRequest) {
     .order('updated_at', { ascending: false });
 
   if (category) {
-    query = query.eq('item.category', category);
+    if (category === 'books') {
+      query = query.in('item.category', ['books', 'fiction_books', 'nonfiction_books']);
+    } else if (category === 'movies') {
+      query = query.in('item.category', ['movies', 'documentaries']);
+    } else {
+      query = query.eq('item.category', category);
+    }
   }
 
   const { data, error } = await query;

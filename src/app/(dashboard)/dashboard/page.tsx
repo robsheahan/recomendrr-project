@@ -72,7 +72,7 @@ export default async function DashboardPage({
           </div>
         </div>
 
-        {(categories?.length || 0) < 7 && (
+        {(categories?.length || 0) < 5 && (
           <Link
             href="/onboarding"
             className="mt-4 inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-zinc-300 backdrop-blur-sm transition-colors hover:bg-white/20"

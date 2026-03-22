@@ -2,11 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { CATEGORY_LABELS } from '@/lib/constants';
+import { CATEGORY_LABELS, ACTIVE_CATEGORIES } from '@/lib/constants';
 import { MediaCategory } from '@/types/database';
 import { CategoryIcon } from '@/components/CategoryIcon';
-
-const ALL_CATEGORIES = Object.keys(CATEGORY_LABELS) as MediaCategory[];
 
 interface CategoryProgress {
   category: MediaCategory;
@@ -32,7 +30,7 @@ export default function OnboardingPage() {
 
   const hasCategories = userCategories.length > 0;
   const activeCategories = new Set(userCategories.map((c) => c.category));
-  const availableToAdd = ALL_CATEGORIES.filter((c) => !activeCategories.has(c));
+  const availableToAdd = ACTIVE_CATEGORIES.filter((c) => !activeCategories.has(c));
 
   function toggleNew(category: MediaCategory) {
     setSelectedNew((prev) => {

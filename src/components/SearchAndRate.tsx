@@ -18,8 +18,7 @@ interface SearchResult {
 }
 
 const SEARCHABLE_CATEGORIES: MediaCategory[] = [
-  'movies', 'tv_shows', 'documentaries',
-  'fiction_books', 'nonfiction_books', 'podcasts', 'music_artists',
+  'movies', 'tv_shows', 'books', 'podcasts', 'music_artists',
 ];
 
 interface ExistingRating {

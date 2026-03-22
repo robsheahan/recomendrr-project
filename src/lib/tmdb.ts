@@ -114,18 +114,14 @@ export async function getTVGenres(): Promise<{ id: number; name: string }[]> {
 export async function getGenresForCategory(category: string): Promise<string[]> {
   switch (category) {
     case 'movies':
-      return Object.values(MOVIE_GENRE_MAP).filter((g) => g !== 'Documentary' && g !== 'TV Movie');
+      return [...Object.values(MOVIE_GENRE_MAP).filter((g) => g !== 'TV Movie'), 'Documentary'];
     case 'tv_shows':
-      return Object.values(TV_GENRE_MAP).filter((g) => g !== 'News' && g !== 'Soap');
-    case 'documentaries':
-      return ['Nature', 'Science', 'History', 'Crime', 'Music', 'Sports', 'Politics', 'Social', 'Technology', 'Biography'];
-    case 'fiction_books': {
-      const { getFictionGenres } = await import('./google-books');
-      return getFictionGenres();
-    }
+      return [...Object.values(TV_GENRE_MAP).filter((g) => g !== 'News' && g !== 'Soap'), 'Documentary'];
+    case 'books':
+    case 'fiction_books':
     case 'nonfiction_books': {
-      const { getNonfictionGenres } = await import('./google-books');
-      return getNonfictionGenres();
+      const { getBookGenres } = await import('./google-books');
+      return getBookGenres();
     }
     case 'music_artists': {
       const { getMusicGenres } = await import('./spotify');
@@ -311,15 +307,11 @@ export async function getPopularByCategory(
       return getPopularMovies(page);
     case 'tv_shows':
       return getPopularTVShows(page);
-    case 'documentaries':
-      return getPopularDocumentaries(page);
-    case 'fiction_books': {
-      const { getPopularFictionBooks } = await import('./google-books');
-      return getPopularFictionBooks(page);
-    }
+    case 'books':
+    case 'fiction_books':
     case 'nonfiction_books': {
-      const { getPopularNonfictionBooks } = await import('./google-books');
-      return getPopularNonfictionBooks(page);
+      const { getPopularBooks } = await import('./google-books');
+      return getPopularBooks(page);
     }
     case 'music_artists': {
       const { getPopularMusicArtists } = await import('./spotify');
@@ -329,6 +321,8 @@ export async function getPopularByCategory(
       const { getPopularPodcasts } = await import('./spotify');
       return getPopularPodcasts(page);
     }
+    case 'documentaries':
+      return getPopularDocumentaries(page);
     default:
       return [];
   }
@@ -343,15 +337,11 @@ export async function searchByCategory(
       return searchMovies(query);
     case 'tv_shows':
       return searchTVShows(query);
-    case 'documentaries':
-      return searchDocumentaries(query);
-    case 'fiction_books': {
-      const { searchFictionBooks } = await import('./google-books');
-      return searchFictionBooks(query);
-    }
+    case 'books':
+    case 'fiction_books':
     case 'nonfiction_books': {
-      const { searchNonfictionBooks } = await import('./google-books');
-      return searchNonfictionBooks(query);
+      const { searchBooks } = await import('./google-books');
+      return searchBooks(query);
     }
     case 'music_artists': {
       const { searchMusicArtists } = await import('./spotify');
@@ -361,6 +351,8 @@ export async function searchByCategory(
       const { searchPodcasts } = await import('./spotify');
       return searchPodcasts(query);
     }
+    case 'documentaries':
+      return searchDocumentaries(query);
     default:
       return [];
   }

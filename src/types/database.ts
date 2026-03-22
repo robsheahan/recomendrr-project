@@ -1,11 +1,13 @@
 export type MediaCategory =
+  | 'movies'
+  | 'tv_shows'
+  | 'books'
+  | 'podcasts'
+  | 'music_artists'
+  // Legacy values still in DB
   | 'fiction_books'
   | 'nonfiction_books'
-  | 'documentaries'
-  | 'tv_shows'
-  | 'movies'
-  | 'podcasts'
-  | 'music_artists';
+  | 'documentaries';
 
 export type RatingSource = 'onboarding' | 'recommendation' | 'manual';
 
