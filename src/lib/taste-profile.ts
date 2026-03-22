@@ -6,6 +6,7 @@ import {
   computeGenreAverages,
 } from './taste-fingerprint';
 import { computeCreatorAffinities, formatCreatorAffinities } from './creator-affinity';
+import { analyseTagPreferences, formatTagPreferences } from './tag-analysis';
 
 export interface TasteProfile {
   category: string;
@@ -27,6 +28,7 @@ export interface TasteProfile {
   calibration: { high: number | null; medium: number | null; low: number | null; total: number } | null;
   collaborativeSection: string | null;
   creatorAffinitySection: string | null;
+  tagPreferencesSection: string | null;
 }
 
 export function buildTasteProfile(
@@ -48,6 +50,10 @@ export function buildTasteProfile(
   // Compute creator affinities
   const creatorAffinities = computeCreatorAffinities(ratings, category);
   const creatorAffinitySection = formatCreatorAffinities(creatorAffinities, category);
+
+  // Analyse tag preferences from enriched items
+  const tagPrefs = analyseTagPreferences(ratings, category);
+  const tagPreferencesSection = tagPrefs ? formatTagPreferences(tagPrefs) : null;
   const categoryRatings = ratings.filter((r) => r.item.category === category);
 
   // Cross-media highlights: top-rated items from OTHER categories
@@ -103,6 +109,7 @@ export function buildTasteProfile(
     calibration,
     collaborativeSection,
     creatorAffinitySection,
+    tagPreferencesSection,
   };
 }
 
@@ -204,6 +211,12 @@ export function formatTasteProfileForLLM(profile: TasteProfile): string {
   // --- Genre constraint ---
   if (profile.genre) {
     lines.push(`GENRE CONSTRAINT: All 3 recommendations MUST be ${profile.genre}. Non-negotiable.`);
+    lines.push('');
+  }
+
+  // --- Tag preferences ---
+  if (profile.tagPreferencesSection) {
+    lines.push(profile.tagPreferencesSection);
     lines.push('');
   }
 
