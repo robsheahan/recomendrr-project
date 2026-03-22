@@ -15,6 +15,7 @@ import {
   computeAllSimilarities,
   formatCollaborativeSignals,
 } from '@/lib/collaborative';
+import { fetchOMDBByTitle, computeQualityScore } from '@/lib/omdb';
 
 export async function POST(request: NextRequest) {
   try {
@@ -279,11 +280,11 @@ export async function POST(request: NextRequest) {
 
   // --- Process recommendations ---
   const batchId = crypto.randomUUID();
-  const results = [];
-  const usedTitles = new Set<string>(); // Dedup within this batch
+  const usedTitles = new Set<string>();
   const usedExternalIds = new Set<string>();
+  const isTmdbCategory = ['movies', 'tv_shows', 'documentaries'].includes(category);
 
-  // Get recently recommended item titles (last 30 days) for this user + category
+  // Get recently recommended item titles (last 30 days)
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const { data: allPrevRecs } = await supabase
     .from('recommendations')
@@ -301,14 +302,19 @@ export async function POST(request: NextRequest) {
       .filter(Boolean)
   );
 
-  for (const rec of llmResponse.recommendations) {
-    // Stop once we have 3 valid recommendations
-    if (results.length >= 3) break;
-    try {
-      // Skip if we already have this title in this batch
-      if (usedTitles.has(rec.title.toLowerCase())) continue;
+  // Step 1: Validate all candidates and fetch quality scores
+  interface ValidCandidate {
+    rec: typeof llmResponse.recommendations[0];
+    itemId: string;
+    match: Awaited<ReturnType<typeof searchByCategory>>[0];
+    qualityScore: number;
+  }
 
-      // Skip if this was previously recommended
+  const candidates: ValidCandidate[] = [];
+
+  for (const rec of llmResponse.recommendations) {
+    try {
+      if (usedTitles.has(rec.title.toLowerCase())) continue;
       if (prevRecTitles.has(rec.title.toLowerCase())) continue;
 
       const searchResults = await searchByCategory(category, rec.title);
@@ -325,15 +331,18 @@ export async function POST(request: NextRequest) {
       // Upsert item
       const { data: existingItem } = await supabase
         .from('items')
-        .select('id')
+        .select('id, metadata')
         .eq('external_id', match.external_id)
         .eq('external_source', match.external_source)
         .eq('category', match.category)
         .single();
 
       let itemId: string;
+      let existingMetadata: Record<string, unknown> = {};
+
       if (existingItem) {
         itemId = existingItem.id;
+        existingMetadata = (existingItem.metadata as Record<string, unknown>) || {};
       } else {
         const { data: newItem, error: insertError } = await supabase
           .from('items')
@@ -359,7 +368,7 @@ export async function POST(request: NextRequest) {
         itemId = newItem.id;
       }
 
-      // Skip items the user has already rated
+      // Skip already rated
       const { data: existingRating } = await supabase
         .from('ratings')
         .select('id')
@@ -369,7 +378,7 @@ export async function POST(request: NextRequest) {
 
       if (existingRating) continue;
 
-      // Skip items already recommended in this batch or still pending
+      // Skip pending duplicates
       const { data: recentRec } = await supabase
         .from('recommendations')
         .select('id')
@@ -380,30 +389,78 @@ export async function POST(request: NextRequest) {
 
       if (recentRec) continue;
 
-      // Store recommendation WITH confidence
-      const { data: recommendation } = await supabase
-        .from('recommendations')
-        .insert({
-          user_id: user.id,
-          item_id: itemId,
-          status: 'pending',
-          reason: rec.reason,
-          model_used: llmResponse.model,
-          batch_id: batchId,
-          intent: intent || refinement || null,
-          confidence: rec.confidence,
-        })
-        .select('*, item:items(*)')
-        .single();
+      // Fetch OMDB ratings for movies/TV/docs (skip for music/books/podcasts)
+      let qualityScore = match.rating || 5; // Default to TMDB rating or 5
 
-      if (recommendation) {
-        results.push({ ...recommendation, confidence: rec.confidence });
-        usedTitles.add(match.title.toLowerCase());
-        usedExternalIds.add(match.external_id);
+      if (isTmdbCategory && !existingMetadata.imdb_rating) {
+        try {
+          const omdb = await fetchOMDBByTitle(match.title, match.year);
+          if (omdb) {
+            const composite = computeQualityScore(omdb);
+            if (composite) qualityScore = composite;
+
+            // Store OMDB data on the item
+            await supabase
+              .from('items')
+              .update({
+                metadata: {
+                  ...existingMetadata,
+                  tmdb_rating: match.rating,
+                  tmdb_vote_count: match.vote_count,
+                  imdb_rating: omdb.imdbRating,
+                  imdb_votes: omdb.imdbVotes,
+                  rotten_tomatoes: omdb.rottenTomatoes,
+                  metascore: omdb.metascore,
+                  imdb_id: omdb.imdbId,
+                },
+              })
+              .eq('id', itemId);
+          }
+        } catch {
+          // OMDB fetch failed, continue with TMDB rating
+        }
+      } else if (existingMetadata.imdb_rating) {
+        // Use cached IMDB rating
+        qualityScore = existingMetadata.imdb_rating as number;
       }
+
+      candidates.push({ rec, itemId, match, qualityScore });
+      usedTitles.add(match.title.toLowerCase());
+      usedExternalIds.add(match.external_id);
     } catch (err) {
       console.error('Error processing recommendation:', err);
       continue;
+    }
+  }
+
+  // Step 2: Sort by quality score (highest rated first) and take top 3
+  candidates.sort((a, b) => b.qualityScore - a.qualityScore);
+
+  const results = [];
+  for (const candidate of candidates.slice(0, 3)) {
+    const { rec, itemId, match, qualityScore } = candidate;
+
+    const { data: recommendation } = await supabase
+      .from('recommendations')
+      .insert({
+        user_id: user.id,
+        item_id: itemId,
+        status: 'pending',
+        reason: rec.reason,
+        model_used: llmResponse.model,
+        batch_id: batchId,
+        intent: intent || refinement || null,
+        confidence: rec.confidence,
+      })
+      .select('*, item:items(*)')
+      .single();
+
+    if (recommendation) {
+      results.push({
+        ...recommendation,
+        confidence: rec.confidence,
+        qualityScore,
+      });
     }
   }
 

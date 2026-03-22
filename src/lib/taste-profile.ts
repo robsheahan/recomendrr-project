@@ -17,9 +17,9 @@ export interface TasteProfile {
   crossCategoryPatterns: string[] | null;
   distribution: RatingDistribution | null;
   crossMediaHighlights: { title: string; score: number; category: string }[];
-  highlyRated: { title: string; score: number }[];
-  moderatelyRated: { title: string; score: number }[];
-  lowRated: { title: string; score: number }[];
+  highlyRated: { title: string; score: number; imdb?: number | null }[];
+  moderatelyRated: { title: string; score: number; imdb?: number | null }[];
+  lowRated: { title: string; score: number; imdb?: number | null }[];
   genreAverages: { genre: string; avg: number; count: number }[];
   notInterested: string[];
   previouslyRecommended: string[];
@@ -77,13 +77,25 @@ export function buildTasteProfile(
     highlyRated: categoryRatings
       .filter((r) => r.score >= 4)
       .sort((a, b) => b.score - a.score)
-      .map((r) => ({ title: r.item.title, score: r.score })),
+      .map((r) => ({
+        title: r.item.title,
+        score: r.score,
+        imdb: (r.item.metadata as Record<string, unknown>)?.imdb_rating as number | null || null,
+      })),
     moderatelyRated: categoryRatings
       .filter((r) => r.score === 3)
-      .map((r) => ({ title: r.item.title, score: r.score })),
+      .map((r) => ({
+        title: r.item.title,
+        score: r.score,
+        imdb: (r.item.metadata as Record<string, unknown>)?.imdb_rating as number | null || null,
+      })),
     lowRated: categoryRatings
       .filter((r) => r.score <= 2)
-      .map((r) => ({ title: r.item.title, score: r.score })),
+      .map((r) => ({
+        title: r.item.title,
+        score: r.score,
+        imdb: (r.item.metadata as Record<string, unknown>)?.imdb_rating as number | null || null,
+      })),
     genreAverages,
     notInterested: notInterestedTitles,
     previouslyRecommended: previouslyRecommendedTitles,
@@ -210,22 +222,27 @@ export function formatTasteProfileForLLM(profile: TasteProfile): string {
   // --- Category ratings (TIERED) ---
   lines.push(`CATEGORY RATINGS [${label}]:`);
 
+  const fmtItem = (r: { title: string; score: number; imdb?: number | null }) => {
+    const imdb = r.imdb ? ` [IMDB ${r.imdb}]` : '';
+    return `${r.title} (${r.score}/5${imdb})`;
+  };
+
   if (totalCategoryRatings <= 100) {
     // TIER 1: List everything (up to 100 ratings)
     if (profile.highlyRated.length > 0)
-      lines.push(`Loved: ${profile.highlyRated.map((r) => `${r.title} (${r.score})`).join(', ')}`);
+      lines.push(`Loved: ${profile.highlyRated.map(fmtItem).join(', ')}`);
     if (profile.moderatelyRated.length > 0)
-      lines.push(`Liked: ${profile.moderatelyRated.map((r) => r.title).join(', ')}`);
+      lines.push(`Liked: ${profile.moderatelyRated.map(fmtItem).join(', ')}`);
     if (profile.lowRated.length > 0)
-      lines.push(`Disliked: ${profile.lowRated.map((r) => r.title).join(', ')}`);
+      lines.push(`Disliked: ${profile.lowRated.map(fmtItem).join(', ')}`);
   } else if (totalCategoryRatings <= 200) {
     // TIER 2: Top 15 + bottom 10 + genre averages
     const topItems = profile.highlyRated.slice(0, 15);
     const bottomItems = profile.lowRated.slice(0, 10);
     if (topItems.length > 0)
-      lines.push(`Top rated: ${topItems.map((r) => `${r.title} (${r.score})`).join(', ')}`);
+      lines.push(`Top rated: ${topItems.map(fmtItem).join(', ')}`);
     if (bottomItems.length > 0)
-      lines.push(`Lowest rated: ${bottomItems.map((r) => r.title).join(', ')}`);
+      lines.push(`Lowest rated: ${bottomItems.map(fmtItem).join(', ')}`);
     if (profile.genreAverages.length > 0) {
       lines.push('Genre preferences:');
       for (const ga of profile.genreAverages.slice(0, 10)) {

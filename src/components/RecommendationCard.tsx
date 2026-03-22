@@ -18,7 +18,7 @@ interface RecommendationItem {
     year: number | null;
     image_url: string | null;
     category: string;
-    metadata: { tmdb_rating?: number; tmdb_vote_count?: number } | null;
+    metadata: { tmdb_rating?: number; tmdb_vote_count?: number; imdb_rating?: number; rotten_tomatoes?: number; metascore?: number; imdb_id?: string } | null;
   };
 }
 
@@ -140,9 +140,19 @@ export function RecommendationCard({
             )}
 
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              {item.metadata?.tmdb_rating != null && (
+              {item.metadata?.imdb_rating != null && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                  ★ {item.metadata.tmdb_rating.toFixed(1)}
+                  IMDB {(item.metadata.imdb_rating as number).toFixed(1)}
+                </span>
+              )}
+              {item.metadata?.rotten_tomatoes != null && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                  RT {item.metadata.rotten_tomatoes as number}%
+                </span>
+              )}
+              {!item.metadata?.imdb_rating && item.metadata?.tmdb_rating != null && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                  ★ {(item.metadata.tmdb_rating as number).toFixed(1)}
                 </span>
               )}
               {item.genres.slice(0, 3).map((genre) => (
