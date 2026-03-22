@@ -258,7 +258,7 @@ export function RecommendationCard({
                 disabled={acting}
                 className="rounded-lg bg-zinc-900 px-3 py-1 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
               >
-                {acting ? 'Saving...' : selectedStar > 0 ? `Save (${selectedStar}/5)` : 'Save'}
+                {acting ? 'Saving...' : 'Save for later'}
               </button>
               <button
                 onClick={() => handleAction('dismissed')}
