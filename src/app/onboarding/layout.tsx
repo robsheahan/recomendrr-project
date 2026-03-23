@@ -22,7 +22,7 @@ export default async function OnboardingLayout({
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
           <Link href="/onboarding">
             <h1 className="text-lg font-black tracking-tighter text-zinc-900 dark:text-zinc-50">
-              RECOMMENDR
+              RECOMMNDER
             </h1>
           </Link>
           <Link

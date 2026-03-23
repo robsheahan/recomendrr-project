@@ -34,7 +34,7 @@ export default function HomePage() {
       <div className="flex min-h-[85vh] flex-col items-center justify-center px-6 text-center">
         <div className="space-y-6">
           <h1 className="text-5xl font-black tracking-tighter sm:text-7xl">
-            RECOMMENDR
+            RECOMMNDER
           </h1>
           <p className="mx-auto max-w-xs text-base leading-relaxed text-zinc-400 sm:max-w-sm sm:text-lg">
             Discover movies, shows, books and music you&apos;ll love — tailored
@@ -96,7 +96,7 @@ export default function HomePage() {
       {/* Features */}
       <div className="border-t border-zinc-800 px-6 py-16">
         <h2 className="mb-2 text-center text-xs font-semibold uppercase tracking-widest text-zinc-500">
-          Why Recommendr
+          Why Recommnder
         </h2>
         <div className="mx-auto mt-8 max-w-sm space-y-8">
           {FEATURES.map((feature) => (
@@ -146,7 +146,7 @@ export default function HomePage() {
       {/* Footer */}
       <div className="border-t border-zinc-800 px-6 py-8 text-center">
         <p className="text-xs text-zinc-600">
-          RECOMMENDR
+          RECOMMNDER
         </p>
       </div>
     </div>

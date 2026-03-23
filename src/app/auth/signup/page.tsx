@@ -44,7 +44,7 @@ export default function SignupPage() {
         <div className="text-center">
           <Link href="/">
             <h1 className="text-2xl font-black tracking-tighter text-white">
-              RECOMMENDR
+              RECOMMNDER
             </h1>
           </Link>
           <p className="mt-2 text-sm text-zinc-500">

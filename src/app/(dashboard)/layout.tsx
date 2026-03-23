@@ -24,7 +24,7 @@ export default async function DashboardLayout({
           <div className="flex h-14 items-center justify-between">
             <Link href="/dashboard">
               <h1 className="text-lg font-black tracking-tighter text-zinc-900 dark:text-zinc-50">
-                RECOMMENDR
+                RECOMMNDER
               </h1>
             </Link>
             <form action="/api/auth/signout" method="post">

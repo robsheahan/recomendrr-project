@@ -99,7 +99,7 @@ export function RecommendationGenerator() {
         setCategories(availableCategories);
         if (availableCategories.length > 0) {
           // Restore last used category from localStorage
-          const lastCategory = localStorage.getItem('recommendr_last_category');
+          const lastCategory = localStorage.getItem('recommnder_last_category');
           const match = availableCategories.find(
             (c: UserCategory) => c.category === lastCategory
           );
@@ -159,7 +159,7 @@ export function RecommendationGenerator() {
     setDismissedIds(new Set());
 
     // Remember last used category
-    localStorage.setItem('recommendr_last_category', selectedCategory);
+    localStorage.setItem('recommnder_last_category', selectedCategory);
 
     // Generate fingerprint on first use
     await ensureFingerprint();

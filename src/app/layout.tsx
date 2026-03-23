@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'RECOMMENDR',
+  title: 'RECOMMNDER',
   description: 'Discover movies, shows, books and music tailored to your taste by AI',
 };
 
