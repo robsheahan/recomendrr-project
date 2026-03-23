@@ -4,41 +4,18 @@ const CATEGORIES = [
   'Movies', 'TV Shows', 'Books', 'Podcasts', 'Music',
 ];
 
-const FEATURES = [
-  {
-    title: 'Your taste, decoded',
-    description:
-      'We analyse your ratings to build a deep taste profile — not just what you like, but why you like it.',
-  },
-  {
-    title: 'Tell us your mood',
-    description:
-      'In the mood for a mind-bending thriller? Something gentle and feel-good? Just tell us and we\'ll find it.',
-  },
-  {
-    title: 'Hidden gems, not obvious picks',
-    description:
-      'Every recommendation set includes something you\'d never find on your own — foreign films, indie releases, overlooked classics.',
-  },
-  {
-    title: 'Explanations that teach',
-    description:
-      'We don\'t just say "because you liked X." We explain the connection at the level of themes, tone, and pacing.',
-  },
-];
-
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
+    <div className="flex min-h-screen flex-col bg-zinc-950 text-white">
       {/* Hero */}
-      <div className="flex min-h-[85vh] flex-col items-center justify-center px-6 text-center">
+      <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
         <div className="space-y-6">
           <h1 className="text-5xl font-black tracking-tighter sm:text-7xl">
             RECOMMNDER
           </h1>
           <p className="mx-auto max-w-xs text-base leading-relaxed text-zinc-400 sm:max-w-sm sm:text-lg">
             Discover movies, shows, books and music you&apos;ll love — tailored
-            to your taste by AI that actually gets you.
+            to your taste by AI.
           </p>
 
           <div className="flex flex-col gap-3 pt-2">
@@ -70,85 +47,34 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* How it works */}
-      <div className="border-t border-zinc-800 px-6 py-16">
-        <h2 className="mb-2 text-center text-xs font-semibold uppercase tracking-widest text-zinc-500">
-          How it works
-        </h2>
-        <div className="mx-auto mt-8 max-w-sm space-y-6">
-          {[
-            { step: '1', text: 'Rate 15 movies, shows or books you know' },
-            { step: '2', text: 'We build your unique taste fingerprint' },
-            { step: '3', text: 'Get personalised recommendations you\'ll actually love' },
-          ].map((item) => (
-            <div key={item.step} className="flex items-start gap-4">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-sm font-bold text-zinc-300">
-                {item.step}
-              </span>
-              <p className="pt-1 text-sm leading-relaxed text-zinc-300">
-                {item.text}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Features */}
-      <div className="border-t border-zinc-800 px-6 py-16">
-        <h2 className="mb-2 text-center text-xs font-semibold uppercase tracking-widest text-zinc-500">
-          Why Recommnder
-        </h2>
-        <div className="mx-auto mt-8 max-w-sm space-y-8">
-          {FEATURES.map((feature) => (
-            <div key={feature.title}>
-              <h3 className="text-sm font-semibold text-zinc-100">
-                {feature.title}
-              </h3>
-              <p className="mt-1 text-sm leading-relaxed text-zinc-500">
-                {feature.description}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Not Netflix */}
-      <div className="border-t border-zinc-800 px-6 py-16">
-        <div className="mx-auto max-w-sm rounded-2xl bg-zinc-900 p-6">
-          <h3 className="text-sm font-semibold text-zinc-100">
-            This isn&apos;t Netflix recommendations
-          </h3>
-          <p className="mt-2 text-sm leading-relaxed text-zinc-500">
-            Netflix recommends what keeps you watching. We recommend what
-            genuinely moves you. No catalog to sell, no engagement metrics —
-            just an AI concierge that understands your taste across every type
-            of media.
+      {/* Footer */}
+      <footer className="border-t border-zinc-800 px-6 py-6">
+        <div className="mx-auto flex max-w-sm flex-col items-center gap-4">
+          <div className="flex gap-6">
+            <Link
+              href="/contact"
+              className="text-xs text-zinc-500 hover:text-zinc-300"
+            >
+              Contact
+            </Link>
+            <Link
+              href="/terms"
+              className="text-xs text-zinc-500 hover:text-zinc-300"
+            >
+              Terms & Conditions
+            </Link>
+            <Link
+              href="/privacy"
+              className="text-xs text-zinc-500 hover:text-zinc-300"
+            >
+              Privacy Policy
+            </Link>
+          </div>
+          <p className="text-xs text-zinc-700">
+            RECOMMNDER
           </p>
         </div>
-      </div>
-
-      {/* Bottom CTA */}
-      <div className="border-t border-zinc-800 px-6 py-16 text-center">
-        <h2 className="text-2xl font-bold tracking-tight">
-          Ready to discover something new?
-        </h2>
-        <p className="mt-2 text-sm text-zinc-500">
-          Free to start. No credit card required.
-        </p>
-        <Link
-          href="/auth/signup"
-          className="mt-6 inline-block rounded-full bg-white px-8 py-3 text-sm font-semibold text-zinc-900 transition-transform active:scale-95"
-        >
-          Create your profile
-        </Link>
-      </div>
-
-      {/* Footer */}
-      <div className="border-t border-zinc-800 px-6 py-8 text-center">
-        <p className="text-xs text-zinc-600">
-          RECOMMNDER
-        </p>
-      </div>
+      </footer>
     </div>
   );
 }
