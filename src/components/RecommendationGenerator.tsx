@@ -113,6 +113,15 @@ export function RecommendationGenerator() {
       .then((data) => {
         setHasFingerprint(!!data.fingerprint);
       });
+
+    // Load any pending recommendations from previous session
+    fetch('/api/recommendations/pending')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.recommendations?.length > 0) {
+          setRecommendations(data.recommendations);
+        }
+      });
   }, []);
 
   // Fetch genres when category changes
