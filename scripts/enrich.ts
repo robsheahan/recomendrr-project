@@ -72,7 +72,7 @@ async function enrichItem(item: ItemRow) {
 
 async function main() {
   const category = process.argv[2] || 'movies';
-  const limit = parseInt(process.argv[3] || '100');
+  const batchSize = 500;
 
   const categoryFilter = category === 'books'
     ? ['books', 'fiction_books', 'nonfiction_books']
@@ -80,48 +80,59 @@ async function main() {
       ? ['movies', 'tv_shows', 'books', 'fiction_books', 'nonfiction_books', 'music_artists', 'podcasts']
       : [category];
 
-  // Get items without tags
-  const { data: items, error } = await supabase
-    .from('items')
-    .select('id, title, creator, genres, year, description, category, metadata')
-    .in('category', categoryFilter)
-    .limit(limit);
+  let totalEnriched = 0, totalErrors = 0;
+  let hasMore = true;
+  let offset = 0;
 
-  if (error) {
-    console.error('DB error:', error.message);
-    return;
-  }
+  while (hasMore) {
+    // Fetch a batch
+    const { data: items, error } = await supabase
+      .from('items')
+      .select('id, title, creator, genres, year, description, category, metadata')
+      .in('category', categoryFilter)
+      .range(offset, offset + batchSize - 1);
 
-  // Filter to items without tags
-  const unenriched = (items as ItemRow[]).filter((item) => {
-    const meta = item.metadata || {};
-    return !meta.tags;
-  });
-
-  console.log(`Found ${unenriched.length} unenriched ${category} items (of ${items.length} total)\n`);
-
-  let enriched = 0, errors = 0;
-
-  for (const item of unenriched) {
-    try {
-      const tags = await enrichItem(item);
-
-      await supabase
-        .from('items')
-        .update({
-          metadata: { ...(item.metadata || {}), tags },
-        })
-        .eq('id', item.id);
-
-      enriched++;
-      process.stdout.write(`\r${enriched}/${unenriched.length} enriched (${errors} errors) — ${item.title}`);
-    } catch (err) {
-      errors++;
-      process.stdout.write(`\r${enriched}/${unenriched.length} enriched (${errors} errors) — ERROR: ${item.title}`);
+    if (error) {
+      console.error('DB error:', error.message);
+      break;
     }
+
+    if (!items || items.length === 0) {
+      hasMore = false;
+      break;
+    }
+
+    // Filter to unenriched
+    const unenriched = (items as ItemRow[]).filter((item) => {
+      const meta = item.metadata || {};
+      return !meta.tags;
+    });
+
+    if (unenriched.length === 0) {
+      offset += batchSize;
+      if (items.length < batchSize) hasMore = false;
+      continue;
+    }
+
+    for (const item of unenriched) {
+      try {
+        const tags = await enrichItem(item);
+        await supabase
+          .from('items')
+          .update({ metadata: { ...(item.metadata || {}), tags } })
+          .eq('id', item.id);
+        totalEnriched++;
+        process.stdout.write(`\r${totalEnriched} enriched (${totalErrors} errors) — ${item.title}`);
+      } catch {
+        totalErrors++;
+      }
+    }
+
+    offset += batchSize;
+    if (items.length < batchSize) hasMore = false;
   }
 
-  console.log(`\n\nDone: ${enriched} enriched, ${errors} errors`);
+  console.log(`\n\nDone: ${totalEnriched} enriched, ${totalErrors} errors`);
 }
 
 main().catch(console.error);

@@ -30,7 +30,7 @@ export const CATEGORY_DB_MAP: Record<string, string[]> = {
   music_artists: ['music_artists'],
 };
 
-export const ONBOARDING_RATINGS_REQUIRED = 15;
+export const ONBOARDING_RATINGS_REQUIRED = 5;
 export const FREE_TIER_MONTHLY_LIMIT = 10;
 export const COOLDOWN_DAYS = 30;
 export const MAX_RECOMMENDATION_COUNT = 3;
