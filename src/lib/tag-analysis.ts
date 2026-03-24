@@ -1,5 +1,6 @@
 import { Item, Rating } from '@/types/database';
-import { ItemTags } from './item-enrichment';
+
+type ItemTags = Record<string, unknown>;
 
 export interface TagPreferences {
   lovedSubGenres: string[];
@@ -38,7 +39,7 @@ export function analyseTagPreferences(
       .filter((t): t is ItemTags => !!t);
   }
 
-  function countOccurrences(tags: ItemTags[], field: keyof ItemTags): Record<string, number> {
+  function countOccurrences(tags: ItemTags[], field: string): Record<string, number> {
     const counts: Record<string, number> = {};
     for (const tag of tags) {
       const values = tag[field];
@@ -66,12 +67,12 @@ export function analyseTagPreferences(
 
   const lovedSubGenres = topN(countOccurrences(lovedTags, 'sub_genres'), 5);
   const lovedThemes = topN(countOccurrences(lovedTags, 'themes'), 5);
-  const lovedTones = topN(countOccurrences(lovedTags, 'tone'), 5);
+  const lovedTones = topN(countOccurrences(lovedTags, 'emotional_tone'), 5);
   const lovedSpecialTags = topN(countOccurrences(lovedTags, 'special_tags'), 5);
 
   const dislikedSubGenres = topN(countOccurrences(dislikedTags, 'sub_genres'), 5, 1);
   const dislikedThemes = topN(countOccurrences(dislikedTags, 'themes'), 3, 1);
-  const dislikedTones = topN(countOccurrences(dislikedTags, 'tone'), 3, 1);
+  const dislikedTones = topN(countOccurrences(dislikedTags, 'emotional_tone'), 3, 1);
   const dislikedSpecialTags = topN(countOccurrences(dislikedTags, 'special_tags'), 3, 1);
   const contentAvoidance = topN(countOccurrences(dislikedTags, 'content_warnings'), 3, 1)
     .filter((w) => w !== 'none');

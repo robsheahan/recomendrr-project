@@ -1,125 +1,235 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 
-export interface ItemTags {
+// --- Universal Tags (all categories) ---
+export interface UniversalTags {
+  emotional_tone: string[]; // euphoric, warm, melancholy, tense, dark, playful, serene, inspiring, irreverent, unsettling, bittersweet, nostalgic, anxious, triumphant, contemplative
+  complexity: number; // 1-5 scale
+  pacing: string; // slow, measured, moderate, brisk, relentless
+  darkness_intensity: string; // light, moderate, dark, very_dark, extreme
+}
+
+// --- Movies Tags ---
+export interface MovieTags extends UniversalTags {
+  character_moral_complexity: string; // likable, flawed, antihero, repellent, mixed
+  primary_engagement: string; // emotional, intellectual, visceral, fun, mixed
+  storytelling_vehicle: string; // dialogue_driven, visual_storytelling, action_driven, balanced
+  tonal_consistency: string; // pure_tone, some_mixing, wild_shifts
+  protagonist_likability: string; // highly_likable, relatable, complex, difficult, repellent
+  resolution_style: string; // neat_closure, mostly_resolved, ambiguous, open_ended, devastating
+  scale: string; // intimate, mid_range, epic, grand_spectacle
+  originality: string; // wholly_original, fresh_take, familiar_well_executed, formulaic
   sub_genres: string[];
   themes: string[];
-  tone: string[];
-  pacing: string;
-  complexity: string;
-  audience: string;
-  popularity_tier: string;
-  special_tags: string[];
   content_warnings: string[];
-  setting_era: string;
-  narrative_style: string;
+  special_tags: string[]; // ends_with_twist, based_on_true_story, cult_classic, visually_stunning, mind_bending, feel_good, tear_jerker, franchise, sequel, animated, foreign_language, award_winner, director_driven
 }
+
+// --- TV Show Tags ---
+export interface TVShowTags extends UniversalTags {
+  serialization: string; // episodic, hybrid, serialized, anthology
+  character_moral_complexity: string;
+  primary_engagement: string;
+  comfort_rewatch_quotient: string; // high, medium, low
+  burn_speed: string; // instant_hook, steady_build, slow_burn, very_slow_burn
+  protagonist_likability: string;
+  humor_integration: string; // comedy_first, humor_throughout, occasional_levity, serious, dark_humor
+  commitment_level: string; // limited_single_season, short_2_3_seasons, medium_4_6_seasons, long_running
+  sub_genres: string[];
+  themes: string[];
+  content_warnings: string[];
+  special_tags: string[]; // binge_worthy, comfort_show, prestige, procedural, reality_based, animated, foreign_language, cult_classic, perfect_ending, controversial_ending, cancelled_too_soon, ensemble_cast
+}
+
+// --- Book Tags ---
+export interface BookTags extends UniversalTags {
+  prose_style_density: string; // sparse, balanced, lush, ornate
+  prose_style_accessibility: string; // accessible, moderate, literary, experimental
+  character_moral_complexity: string;
+  primary_engagement: string;
+  reading_purpose: string; // escapism, emotional_experience, intellectual_stimulation, self_improvement, aesthetic_pleasure
+  length_category: string; // short_under_250, medium_250_400, long_400_600, epic_over_600
+  is_series: boolean;
+  is_fiction: boolean;
+  protagonist_likability: string;
+  resolution_style: string;
+  internal_monologue_level: string; // minimal, moderate, heavy, stream_of_consciousness
+  sub_genres: string[];
+  themes: string[];
+  content_warnings: string[];
+  special_tags: string[]; // page_turner, twist_ending, unreliable_narrator, award_winner, classic, modern_classic, translated, beautiful_prose, thought_provoking, comfort_read, debut_novel, book_club_pick, multiple_pov
+  // Non-fiction specific (null for fiction)
+  nonfiction_type: string | null; // narrative, idea_driven, practical, academic, memoir, investigative
+  nonfiction_depth: string | null; // popular_accessible, moderate, deep_rigorous
+}
+
+// --- Music Artist Tags ---
+export interface MusicArtistTags {
+  energy_intensity: string; // ambient, low, medium, high, extreme, varied
+  sonic_texture_organic: string; // fully_organic, mostly_organic, hybrid, mostly_electronic, fully_electronic
+  sonic_texture_production: string; // raw_lo_fi, natural, balanced, polished, hyper_produced
+  sonic_density: string; // minimal_sparse, moderate, dense_layered, maximalist
+  vocal_style: string; // clean_melodic, raw_textured, rap_spoken, screamed_harsh, instrumental_only, varied
+  vocal_prominence: string; // instrumental_dominant, balanced, vocal_dominant
+  lyrical_depth: string; // none_instrumental, surface_party, narrative_storytelling, emotional_confessional, poetic_literary, political_social
+  emotional_tone: string[]; // euphoric, melancholy, aggressive, serene, dark, playful, romantic, anxious, triumphant, nostalgic, dreamy, intense, peaceful, rebellious
+  complexity: number; // 1-5
+  harmonic_sophistication: string; // simple_pop, moderate, sophisticated, jazz_level, experimental
+  rhythmic_character: string; // steady_driving, groovy_syncopated, complex_shifting, ambient_free, varied
+  sub_genres: string[];
+  themes: string[];
+  special_tags: string[]; // iconic, legendary, genre_defining, genre_bending, great_live_act, prolific, one_hit_wonder, critically_acclaimed, underground_hero, comeback, influential, singer_songwriter, supergroup
+}
+
+// --- Podcast Tags ---
+export interface PodcastTags {
+  podcast_format: string; // narrative_produced, conversational_interview, solo_commentary, panel_roundtable, educational_lecture, fiction_audio_drama, mixed
+  subject_domain: string[]; // current_events, technology, business, science, history, true_crime, comedy, culture, health, sports, personal_development, storytelling, politics, finance, gaming, relationships, philosophy, nature
+  host_style: string; // formal_authoritative, casual_warm, comedic_irreverent, provocative_challenging, academic_expert, journalistic
+  information_density: string; // high, medium, low
+  production_quality: string; // high_cinematic, good, moderate, lo_fi_authentic
+  emotional_tone: string[]; // serious, light, inspiring, dark, playful, intimate, intense, educational, entertaining, provocative
+  complexity: number; // 1-5
+  episode_length_category: string; // short_under_30, medium_30_60, long_60_120, marathon_over_120
+  host_count: string; // solo, duo, panel, rotating, varied
+  serialization: string; // fully_serialized, loosely_serialized, standalone_episodes, mixed
+  currency: string; // current_events_focused, mixed, evergreen_timeless
+  content_warnings: string[];
+  special_tags: string[]; // binge_worthy, great_for_commutes, award_winning, celebrity_host, expert_host, investigative, feel_good, addictive, educational, thought_provoking, daily, completed_series
+}
+
+export type ItemTags = MovieTags | TVShowTags | BookTags | MusicArtistTags | PodcastTags;
+
+// --- Enrichment Prompts ---
+
+const MOVIE_ENRICHMENT = `You are a film analyst. Given a movie's details, provide precise taste-dimension tags.
+
+Return JSON with this exact structure:
+{
+  "emotional_tone": ["the specific emotional experiences this film produces — be precise. Options: euphoric, warm, melancholy, tense, dark, playful, serene, inspiring, irreverent, unsettling, bittersweet, nostalgic, anxious, triumphant, contemplative"],
+  "complexity": 1-5,
+  "pacing": "slow | measured | moderate | brisk | relentless",
+  "darkness_intensity": "light | moderate | dark | very_dark | extreme",
+  "character_moral_complexity": "likable | flawed | antihero | repellent | mixed",
+  "primary_engagement": "emotional | intellectual | visceral | fun | mixed",
+  "storytelling_vehicle": "dialogue_driven | visual_storytelling | action_driven | balanced",
+  "tonal_consistency": "pure_tone | some_mixing | wild_shifts",
+  "protagonist_likability": "highly_likable | relatable | complex | difficult | repellent",
+  "resolution_style": "neat_closure | mostly_resolved | ambiguous | open_ended | devastating",
+  "scale": "intimate | mid_range | epic | grand_spectacle",
+  "originality": "wholly_original | fresh_take | familiar_well_executed | formulaic",
+  "sub_genres": ["specific sub-genres"],
+  "themes": ["key themes"],
+  "content_warnings": ["graphic_violence | gore | sexual_content | disturbing_imagery | drug_use | self_harm | animal_cruelty | none"],
+  "special_tags": ["ends_with_twist", "based_on_true_story", "cult_classic", "visually_stunning", "mind_bending", "feel_good", "tear_jerker", "franchise", "sequel", "animated", "foreign_language", "award_winner", "director_driven", "crowd_pleaser", "underrated", "comfort_watch"]
+}
+
+Be precise with emotional_tone — "dark" and "melancholy" are different. "Tense" and "anxious" are different.
+Only include tags that genuinely apply. Return valid JSON only.`;
+
+const TV_ENRICHMENT = `You are a TV analyst. Given a show's details, provide precise taste-dimension tags.
+
+Return JSON with this exact structure:
+{
+  "emotional_tone": ["specific emotional experiences — euphoric, warm, melancholy, tense, dark, playful, serene, inspiring, irreverent, unsettling, bittersweet, nostalgic, anxious, triumphant, contemplative"],
+  "complexity": 1-5,
+  "pacing": "slow | measured | moderate | brisk | relentless",
+  "darkness_intensity": "light | moderate | dark | very_dark | extreme",
+  "serialization": "episodic | hybrid | serialized | anthology",
+  "character_moral_complexity": "likable | flawed | antihero | repellent | mixed",
+  "primary_engagement": "emotional | intellectual | visceral | fun | mixed",
+  "comfort_rewatch_quotient": "high | medium | low",
+  "burn_speed": "instant_hook | steady_build | slow_burn | very_slow_burn",
+  "protagonist_likability": "highly_likable | relatable | complex | difficult | repellent",
+  "humor_integration": "comedy_first | humor_throughout | occasional_levity | serious | dark_humor",
+  "commitment_level": "limited_single_season | short_2_3_seasons | medium_4_6_seasons | long_running",
+  "sub_genres": ["specific sub-genres"],
+  "themes": ["key themes"],
+  "content_warnings": ["graphic_violence | gore | sexual_content | disturbing_imagery | drug_use | none"],
+  "special_tags": ["binge_worthy", "comfort_show", "prestige", "procedural", "reality_based", "animated", "foreign_language", "cult_classic", "perfect_ending", "controversial_ending", "cancelled_too_soon", "ensemble_cast", "great_pilot", "slow_start_fast_finish"]
+}
+
+Return valid JSON only.`;
+
+const BOOK_ENRICHMENT = `You are a literary analyst. Given a book's details, provide precise taste-dimension tags.
+
+Return JSON with this exact structure:
+{
+  "emotional_tone": ["specific emotional experiences — euphoric, warm, melancholy, tense, dark, playful, serene, inspiring, irreverent, unsettling, bittersweet, nostalgic, anxious, triumphant, contemplative, haunting"],
+  "complexity": 1-5,
+  "pacing": "slow | measured | moderate | brisk | relentless",
+  "darkness_intensity": "light | moderate | dark | very_dark | extreme",
+  "prose_style_density": "sparse | balanced | lush | ornate",
+  "prose_style_accessibility": "accessible | moderate | literary | experimental",
+  "character_moral_complexity": "likable | flawed | antihero | repellent | mixed",
+  "primary_engagement": "emotional | intellectual | visceral | fun | mixed",
+  "reading_purpose": "escapism | emotional_experience | intellectual_stimulation | self_improvement | aesthetic_pleasure",
+  "length_category": "short_under_250 | medium_250_400 | long_400_600 | epic_over_600",
+  "is_series": true/false,
+  "is_fiction": true/false,
+  "protagonist_likability": "highly_likable | relatable | complex | difficult | repellent | not_applicable",
+  "resolution_style": "neat_closure | mostly_resolved | ambiguous | open_ended | devastating | not_applicable",
+  "internal_monologue_level": "minimal | moderate | heavy | stream_of_consciousness",
+  "sub_genres": ["specific sub-genres"],
+  "themes": ["key themes"],
+  "content_warnings": ["graphic_violence | sexual_content | disturbing_content | heavy_themes | none"],
+  "special_tags": ["page_turner", "twist_ending", "unreliable_narrator", "award_winner", "classic", "modern_classic", "translated", "beautiful_prose", "thought_provoking", "comfort_read", "debut_novel", "book_club_pick", "multiple_pov"],
+  "nonfiction_type": "narrative | idea_driven | practical | academic | memoir | investigative" or null if fiction,
+  "nonfiction_depth": "popular_accessible | moderate | deep_rigorous" or null if fiction
+}
+
+Return valid JSON only.`;
+
+const MUSIC_ENRICHMENT = `You are a music analyst. Given an artist's details, provide precise taste-dimension tags.
+
+Return JSON with this exact structure:
+{
+  "energy_intensity": "ambient | low | medium | high | extreme | varied",
+  "sonic_texture_organic": "fully_organic | mostly_organic | hybrid | mostly_electronic | fully_electronic",
+  "sonic_texture_production": "raw_lo_fi | natural | balanced | polished | hyper_produced",
+  "sonic_density": "minimal_sparse | moderate | dense_layered | maximalist",
+  "vocal_style": "clean_melodic | raw_textured | rap_spoken | screamed_harsh | instrumental_only | varied",
+  "vocal_prominence": "instrumental_dominant | balanced | vocal_dominant",
+  "lyrical_depth": "none_instrumental | surface_party | narrative_storytelling | emotional_confessional | poetic_literary | political_social",
+  "emotional_tone": ["euphoric, melancholy, aggressive, serene, dark, playful, romantic, anxious, triumphant, nostalgic, dreamy, intense, peaceful, rebellious"],
+  "complexity": 1-5,
+  "harmonic_sophistication": "simple_pop | moderate | sophisticated | jazz_level | experimental",
+  "rhythmic_character": "steady_driving | groovy_syncopated | complex_shifting | ambient_free | varied",
+  "sub_genres": ["specific sub-genres"],
+  "themes": ["key themes in their music"],
+  "special_tags": ["iconic", "legendary", "genre_defining", "genre_bending", "great_live_act", "prolific", "one_hit_wonder", "critically_acclaimed", "underground_hero", "comeback", "influential", "singer_songwriter", "supergroup"]
+}
+
+Return valid JSON only.`;
+
+const PODCAST_ENRICHMENT = `You are a podcast analyst. Given a podcast's details, provide precise taste-dimension tags.
+
+Return JSON with this exact structure:
+{
+  "podcast_format": "narrative_produced | conversational_interview | solo_commentary | panel_roundtable | educational_lecture | fiction_audio_drama | mixed",
+  "subject_domain": ["primary and secondary topics — current_events, technology, business, science, history, true_crime, comedy, culture, health, sports, personal_development, storytelling, politics, finance, gaming, relationships, philosophy, nature"],
+  "host_style": "formal_authoritative | casual_warm | comedic_irreverent | provocative_challenging | academic_expert | journalistic",
+  "information_density": "high | medium | low",
+  "production_quality": "high_cinematic | good | moderate | lo_fi_authentic",
+  "emotional_tone": ["serious, light, inspiring, dark, playful, intimate, intense, educational, entertaining, provocative"],
+  "complexity": 1-5,
+  "episode_length_category": "short_under_30 | medium_30_60 | long_60_120 | marathon_over_120",
+  "host_count": "solo | duo | panel | rotating | varied",
+  "serialization": "fully_serialized | loosely_serialized | standalone_episodes | mixed",
+  "currency": "current_events_focused | mixed | evergreen_timeless",
+  "content_warnings": ["explicit_language | violent_content | heavy_themes | none"],
+  "special_tags": ["binge_worthy", "great_for_commutes", "award_winning", "celebrity_host", "expert_host", "investigative", "feel_good", "addictive", "educational", "thought_provoking", "daily", "completed_series"]
+}
+
+Return valid JSON only.`;
 
 const ENRICHMENT_PROMPTS: Record<string, string> = {
-  movies: `You are a film cataloguer. Given a movie's title, year, genres, and description, provide detailed tags.
-
-Return JSON with this exact structure:
-{
-  "sub_genres": ["psychological thriller", "neo-noir", "heist film"],
-  "themes": ["redemption", "corruption", "identity", "betrayal", "family", "isolation", "justice", "survival", "class", "power", "love", "obsession", "grief", "revenge", "morality"],
-  "tone": ["dark", "tense", "gritty", "lighthearted", "whimsical", "bleak", "uplifting", "melancholic", "suspenseful", "humorous", "intense", "dreamlike", "warm"],
-  "pacing": "slow burn" | "methodical" | "moderate" | "fast-paced" | "relentless",
-  "complexity": "simple" | "moderate" | "layered" | "complex" | "dense",
-  "audience": "mainstream" | "broad appeal" | "cinephile" | "art-house" | "cult",
-  "popularity_tier": "blockbuster" | "mainstream hit" | "well-known" | "mid-range" | "indie" | "obscure",
-  "special_tags": ["ends with a twist", "based on true story", "ensemble cast", "unreliable narrator", "non-linear timeline", "cult classic", "feel-good", "tear-jerker", "mind-bending", "visually stunning", "dialogue-driven", "character study", "slow cinema", "crowd-pleaser", "sleeper hit", "underrated gem", "franchise", "sequel", "remake", "foreign language", "animated", "black and white"],
-  "content_warnings": ["graphic violence", "overly gory", "sexual content", "heavy themes", "disturbing imagery", "drug use", "none"],
-  "setting_era": "contemporary" | "period piece" | "futuristic" | "historical" | "timeless" | "mixed",
-  "narrative_style": "linear" | "non-linear" | "anthology" | "found footage" | "documentary style" | "ensemble" | "single protagonist" | "dual timeline" | "epistolary"
-}
-
-Rules:
-- Only include sub_genres, themes, tone, special_tags, and content_warnings that genuinely apply
-- Be specific with sub_genres — "psychological thriller" not just "thriller"
-- special_tags should capture distinctive qualities that help match with user preferences
-- Be honest about content_warnings — if it's gory, say so
-- Return valid JSON only`,
-
-  tv_shows: `You are a TV show cataloguer. Given a show's title, year, genres, and description, provide detailed tags.
-
-Return JSON with this exact structure:
-{
-  "sub_genres": ["prestige drama", "workplace comedy", "procedural", "limited series"],
-  "themes": ["power", "family", "corruption", "identity", "survival", "justice", "love", "class", "revenge", "grief", "coming of age", "loyalty"],
-  "tone": ["dark", "tense", "comedic", "warm", "gritty", "lighthearted", "suspenseful", "satirical", "dramatic", "quirky"],
-  "pacing": "slow burn" | "steady" | "moderate" | "fast-paced" | "binge-worthy",
-  "complexity": "simple" | "moderate" | "layered" | "complex" | "dense",
-  "audience": "mainstream" | "broad appeal" | "prestige" | "niche" | "cult",
-  "popularity_tier": "cultural phenomenon" | "mainstream hit" | "well-known" | "mid-range" | "hidden gem" | "obscure",
-  "special_tags": ["binge-worthy", "ends with a twist", "based on true story", "ensemble cast", "anthology", "limited series", "long-running", "cult classic", "comfort show", "critically acclaimed", "cancelled too soon", "perfect ending", "controversial ending", "great pilot", "slow start fast finish", "foreign language", "animated", "reality-based", "mockumentary"],
-  "content_warnings": ["graphic violence", "sexual content", "heavy themes", "disturbing imagery", "drug use", "none"],
-  "setting_era": "contemporary" | "period piece" | "futuristic" | "historical" | "timeless" | "mixed",
-  "narrative_style": "serialized" | "episodic" | "anthology" | "mockumentary" | "ensemble" | "single protagonist" | "dual timeline"
-}
-
-Rules:
-- Be specific with sub_genres
-- special_tags should capture what makes this show distinctive
-- Return valid JSON only`,
-
-  books: `You are a book cataloguer. Given a book's title, author, genres, and description, provide detailed tags.
-
-Return JSON with this exact structure:
-{
-  "sub_genres": ["literary fiction", "psychological thriller", "epic fantasy", "popular science", "memoir"],
-  "themes": ["identity", "power", "family", "love", "survival", "justice", "class", "redemption", "grief", "obsession", "coming of age", "war", "technology", "nature", "spirituality"],
-  "tone": ["lyrical", "gripping", "contemplative", "humorous", "dark", "uplifting", "haunting", "conversational", "academic", "whimsical", "intense", "warm"],
-  "pacing": "leisurely" | "measured" | "moderate" | "page-turner" | "relentless",
-  "complexity": "accessible" | "moderate" | "literary" | "complex" | "dense",
-  "audience": "mainstream" | "book club" | "literary" | "academic" | "niche",
-  "popularity_tier": "bestseller" | "well-known" | "book club favorite" | "mid-range" | "hidden gem" | "obscure",
-  "special_tags": ["page-turner", "twist ending", "unreliable narrator", "based on true story", "award winner", "debut novel", "series", "standalone", "short read", "epic length", "multiple POV", "beautiful prose", "thought-provoking", "beach read", "comfort read", "cult classic", "banned book", "classic", "modern classic", "translated"],
-  "content_warnings": ["graphic violence", "sexual content", "heavy themes", "disturbing content", "none"],
-  "setting_era": "contemporary" | "historical" | "futuristic" | "timeless" | "mixed",
-  "narrative_style": "first person" | "third person" | "multiple POV" | "epistolary" | "non-linear" | "stream of consciousness" | "linear"
-}
-
-Rules:
-- Cover both fiction and non-fiction appropriately
-- Be specific with sub_genres
-- Return valid JSON only`,
-
-  music_artists: `You are a music cataloguer. Given an artist's name and genres, provide detailed tags.
-
-Return JSON with this exact structure:
-{
-  "sub_genres": ["indie rock", "synth-pop", "conscious hip-hop", "neo-soul"],
-  "themes": ["love", "social commentary", "personal struggle", "party", "introspection", "rebellion", "spirituality", "nostalgia", "empowerment"],
-  "tone": ["energetic", "melancholic", "uplifting", "dark", "chill", "aggressive", "dreamy", "raw", "polished", "experimental"],
-  "pacing": "high energy" | "mid-tempo" | "varied" | "mellow" | "intense",
-  "complexity": "accessible" | "moderate" | "intricate" | "experimental" | "avant-garde",
-  "audience": "mainstream" | "broad appeal" | "indie" | "underground" | "niche",
-  "popularity_tier": "superstar" | "mainstream" | "well-known" | "mid-range" | "emerging" | "underground",
-  "special_tags": ["iconic", "legendary", "one-hit wonder", "prolific", "great live act", "producer", "singer-songwriter", "band", "solo artist", "collaboration heavy", "genre-defining", "genre-bending", "critically acclaimed", "commercial success", "cult following", "comeback", "influential"],
-  "content_warnings": ["explicit lyrics", "none"],
-  "setting_era": "classic" | "90s" | "2000s" | "2010s" | "current" | "timeless",
-  "narrative_style": "storyteller" | "confessional" | "abstract" | "political" | "party" | "atmospheric"
-}
-
-Return valid JSON only`,
-
-  podcasts: `You are a podcast cataloguer. Given a podcast's title, host, and description, provide detailed tags.
-
-Return JSON with this exact structure:
-{
-  "sub_genres": ["true crime investigation", "interview show", "narrative non-fiction", "comedy panel"],
-  "themes": ["crime", "science", "history", "culture", "politics", "technology", "self-improvement", "storytelling", "comedy", "business", "relationships", "philosophy"],
-  "tone": ["conversational", "investigative", "educational", "comedic", "serious", "casual", "intense", "inspiring", "informative", "entertaining"],
-  "pacing": "binge-worthy" | "steady" | "varied" | "dense" | "casual",
-  "complexity": "casual listen" | "moderate" | "in-depth" | "expert level",
-  "audience": "mainstream" | "broad appeal" | "niche" | "professional" | "enthusiast",
-  "popularity_tier": "top chart" | "well-known" | "popular" | "mid-range" | "hidden gem" | "niche",
-  "special_tags": ["binge-worthy", "great for commutes", "interview format", "solo host", "panel show", "narrative", "serialized", "educational", "celebrity host", "award-winning", "daily", "weekly", "completed series", "long-running", "short episodes", "long episodes"],
-  "content_warnings": ["explicit language", "violent content", "heavy themes", "none"],
-  "setting_era": "current" | "historical focus" | "timeless",
-  "narrative_style": "interview" | "narrative" | "conversational" | "documentary" | "panel" | "solo commentary" | "mixed"
-}
-
-Return valid JSON only`,
+  movies: MOVIE_ENRICHMENT,
+  tv_shows: TV_ENRICHMENT,
+  books: BOOK_ENRICHMENT,
+  fiction_books: BOOK_ENRICHMENT,
+  nonfiction_books: BOOK_ENRICHMENT,
+  music_artists: MUSIC_ENRICHMENT,
+  podcasts: PODCAST_ENRICHMENT,
 };
 
 // Enrich a single item with LLM-generated tags
@@ -175,7 +285,6 @@ export async function enrichItemsInDB(
   category: string,
   limit: number = 50
 ): Promise<{ enriched: number; skipped: number; errors: number }> {
-  // Find items that don't have tags yet
   const categoryFilter = category === 'books'
     ? ['books', 'fiction_books', 'nonfiction_books']
     : [category];
@@ -193,7 +302,6 @@ export async function enrichItemsInDB(
   for (const item of items) {
     const metadata = (item.metadata || {}) as Record<string, unknown>;
 
-    // Skip if already enriched
     if (metadata.tags) {
       skipped++;
       continue;
