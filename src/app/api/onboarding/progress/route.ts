@@ -24,12 +24,11 @@ export async function GET() {
     });
   }
 
-  // Get rating counts per category
+  // Get rating counts per category (all sources, not just onboarding)
   const { data: ratings } = await supabase
     .from('ratings')
     .select('id, items!inner(category)')
-    .eq('user_id', user.id)
-    .eq('source', 'onboarding');
+    .eq('user_id', user.id);
 
   const ratingsByCategory: Record<string, number> = {};
   for (const rating of ratings || []) {
