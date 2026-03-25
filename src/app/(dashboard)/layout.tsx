@@ -21,7 +21,7 @@ export default async function DashboardLayout({
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <header className="sticky top-0 z-40 border-b border-zinc-800 bg-zinc-950 backdrop-blur-lg">
         <div className="mx-auto max-w-5xl px-4">
-          <div className="flex h-16 items-end justify-between pb-2">
+          <div className="flex h-16 items-end justify-between pb-3">
             <Link href="/dashboard">
               <img src="/recommnderwhite.svg" alt="RECOMMNDER" className="-ml-2 h-10" />
             </Link>

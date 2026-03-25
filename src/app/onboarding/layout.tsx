@@ -18,10 +18,10 @@ export default async function OnboardingLayout({
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
+      <header className="border-b border-zinc-800 bg-zinc-950">
+        <div className="mx-auto flex h-16 max-w-5xl items-end justify-between px-4 pb-3">
           <Link href="/onboarding">
-            <img src="/recommnderwhite.svg" alt="RECOMMNDER" className="h-6" />
+            <img src="/recommnderwhite.svg" alt="RECOMMNDER" className="-ml-2 h-10" />
           </Link>
           <Link
             href="/dashboard?skip_onboarding=1"
