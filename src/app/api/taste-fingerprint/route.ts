@@ -4,6 +4,10 @@ import {
   generateTasteFingerprint,
   computeRatingDistribution,
 } from '@/lib/taste-fingerprint';
+import {
+  generateCategoryFingerprint,
+  CATEGORY_FINGERPRINT_MIN_RATINGS,
+} from '@/lib/category-fingerprints';
 
 export async function POST() {
   const supabase = await createClient();
@@ -117,6 +121,61 @@ export async function GET() {
     .eq('user_id', user.id)
     .not('category', 'is', null);
 
+  // Auto-generate missing per-category fingerprints
+  const existingCategories = new Set((categoryFingerprints || []).map((cf) => cf.category));
+  const allCategoryMap: Record<string, string[]> = {
+    movies: ['movies', 'documentaries'],
+    tv_shows: ['tv_shows'],
+    books: ['books', 'fiction_books', 'nonfiction_books'],
+    music_artists: ['music_artists'],
+    podcasts: ['podcasts'],
+  };
+
+  const { data: allRatings } = await supabase
+    .from('ratings')
+    .select('*, item:items!inner(*)')
+    .eq('user_id', user.id);
+
+  const ratingsWithItems = (allRatings || []).map((r) => ({ ...r, item: r.item }));
+  const newCategoryFingerprints: typeof categoryFingerprints = [];
+
+  for (const [cat, dbCats] of Object.entries(allCategoryMap)) {
+    if (existingCategories.has(cat)) continue;
+
+    const catRatings = ratingsWithItems.filter((r) => dbCats.includes(r.item.category));
+    if (catRatings.length < CATEGORY_FINGERPRINT_MIN_RATINGS) continue;
+
+    try {
+      const result = await generateCategoryFingerprint(
+        catRatings,
+        cat,
+        data?.taste_thesis || null
+      );
+
+      if (result) {
+        await supabase.from('taste_fingerprints').insert({
+          user_id: user.id,
+          category: cat,
+          fingerprint: result,
+          generated_at: new Date().toISOString(),
+          ratings_count_at_generation: catRatings.length,
+          fingerprint_version: 1,
+        });
+
+        newCategoryFingerprints!.push({
+          category: cat,
+          fingerprint: result,
+          generated_at: new Date().toISOString(),
+          ratings_count_at_generation: catRatings.length,
+        });
+      }
+    } catch (err) {
+      console.error(`Failed to generate ${cat} fingerprint:`, err);
+    }
+  }
+
+  const allCategoryFPs = [...(categoryFingerprints || []), ...(newCategoryFingerprints || [])];
+
   return NextResponse.json({
     fingerprint: data?.fingerprint || null,
     generatedAt: data?.generated_at || null,
@@ -126,7 +185,7 @@ export async function GET() {
     tasteThesis: data?.taste_thesis || null,
     crossCategoryPatterns: data?.cross_category_patterns || null,
     ratingDistribution: data?.rating_distribution || null,
-    categoryFingerprints: (categoryFingerprints || []).map((cf) => ({
+    categoryFingerprints: allCategoryFPs.map((cf) => ({
       category: cf.category,
       fingerprint: cf.fingerprint,
       generatedAt: cf.generated_at,
