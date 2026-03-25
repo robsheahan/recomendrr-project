@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { RecommendationCard } from '@/components/RecommendationCard';
+import { CATEGORY_LABELS } from '@/lib/constants';
+import { CategoryIcon } from '@/components/CategoryIcon';
 
 interface SavedItem {
   id: string;
@@ -19,6 +21,12 @@ interface SavedItem {
     metadata: Record<string, unknown> | null;
   };
 }
+
+const CATEGORY_MAP: Record<string, string> = {
+  fiction_books: 'books',
+  nonfiction_books: 'books',
+  documentaries: 'movies',
+};
 
 export default function SavedPage() {
   const [items, setItems] = useState<SavedItem[]>([]);
@@ -55,6 +63,19 @@ export default function SavedPage() {
     );
   }
 
+  // Group items by mapped category
+  const grouped: Record<string, SavedItem[]> = {};
+  for (const item of items) {
+    const cat = CATEGORY_MAP[item.item.category] || item.item.category;
+    if (!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push(item);
+  }
+
+  const categoryOrder = ['movies', 'tv_shows', 'books', 'podcasts', 'music_artists'];
+  const sortedCategories = Object.keys(grouped).sort(
+    (a, b) => categoryOrder.indexOf(a) - categoryOrder.indexOf(b)
+  );
+
   return (
     <div className="space-y-6">
       <div>
@@ -62,7 +83,7 @@ export default function SavedPage() {
           Saved for later
         </h2>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Items you&apos;ve saved from your recommendations
+          {items.length} item{items.length !== 1 ? 's' : ''} saved
         </p>
       </div>
 
@@ -74,20 +95,35 @@ export default function SavedPage() {
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {items.map((item) => (
-            <RecommendationCard
-              key={item.id}
-              recommendation={item}
-              onAction={handleAction}
-              onFeedback={async (id, feedback, reason) => {
-                await fetch('/api/recommendations/feedback', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ recommendationId: id, feedback, reason }),
-                });
-              }}
-            />
+        <div className="space-y-8">
+          {sortedCategories.map((cat) => (
+            <div key={cat}>
+              <div className="mb-3 flex items-center gap-2">
+                <CategoryIcon category={cat} className="h-5 w-5 text-zinc-500 dark:text-zinc-400" />
+                <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                  {CATEGORY_LABELS[cat] || cat}
+                </h3>
+                <span className="text-xs text-zinc-400">
+                  {grouped[cat].length}
+                </span>
+              </div>
+              <div className="space-y-3">
+                {grouped[cat].map((item) => (
+                  <RecommendationCard
+                    key={item.id}
+                    recommendation={item}
+                    onAction={handleAction}
+                    onFeedback={async (id, feedback, reason) => {
+                      await fetch('/api/recommendations/feedback', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ recommendationId: id, feedback, reason }),
+                      });
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       )}
