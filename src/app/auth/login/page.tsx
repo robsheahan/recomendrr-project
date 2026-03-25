@@ -37,9 +37,9 @@ export default function LoginPage() {
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center">
           <Link href="/">
-            <img src="/recommnderwhite.svg" alt="RECOMMNDER" className="h-8" />
+            <img src="/recommnderwhite.svg" alt="RECOMMNDER" className="mx-auto h-10" />
           </Link>
-          <p className="mt-2 text-sm text-zinc-500">
+          <p className="mt-3 text-sm text-zinc-500">
             Sign in to your account
           </p>
         </div>
