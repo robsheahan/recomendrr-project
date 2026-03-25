@@ -32,7 +32,7 @@ RECOMMENDATION STRATEGY:
 - If COLLABORATIVE SIGNALS are provided, seriously consider those items — they are loved by users with verified similar taste
 
 CATEGORY-SPECIFIC RULES:
-- PODCASTS: Lean HEAVILY toward well-known, popular podcasts with large audiences. For "Safe pick", ONLY recommend podcasts that are household names or chart-toppers (Joe Rogan, Serial, This American Life, Radiolab, Freakonomics, etc). Most people have not heard of niche podcasts — err strongly toward mainstream popularity
+- PODCASTS: This is critical — ONLY recommend podcasts that are genuinely famous and widely known. For ANY intent, every podcast you recommend should have millions of downloads or be a household name. Examples of the popularity level required: Joe Rogan, Serial, This American Life, Radiolab, Freakonomics, Crime Junkie, My Favorite Murder, Huberman Lab, SmartLess, Armchair Expert, Conan O'Brien, Call Her Daddy, Stuff You Should Know, How I Built This, Hidden Brain, The Daily, Pod Save America, Hardcore History. If you haven't heard of a podcast being extremely popular, do NOT recommend it
 - MUSIC: Prioritise well-known artists. For "Safe pick", recommend artists most people would recognise
 - BOOKS: Prioritise bestsellers and award winners. For "Safe pick", recommend books that have been widely read and discussed
 

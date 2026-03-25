@@ -49,10 +49,10 @@ const CATEGORY_INTENTS: Record<string, { label: string; value: string }[]> = {
     { label: 'New', value: 'A great book published in the last 1-2 years' },
   ],
   podcasts: [
-    { label: 'Surprise me', value: 'Surprise me with a podcast I wouldn\'t normally discover but would love based on my interests' },
-    { label: 'Safe pick', value: 'A hugely popular, well-known podcast I\'m very likely to enjoy' },
-    { label: 'Classic', value: 'A podcast that is widely considered one of the best and most iconic of all time' },
-    { label: 'New', value: 'A great podcast that has launched or had a standout season in the last 1-2 years' },
+    { label: 'Surprise me', value: 'Surprise me with a podcast I wouldn\'t normally discover but would love based on my interests. It should still be reasonably well-known.' },
+    { label: 'Safe pick', value: 'ONLY recommend massively popular, mainstream, chart-topping podcasts that most people have heard of. Think Joe Rogan, Serial, This American Life, Radiolab, Freakonomics, Crime Junkie, Huberman Lab, SmartLess, Conan O\'Brien, Armchair Expert level of fame. Do NOT recommend anything niche or obscure.' },
+    { label: 'Classic', value: 'A podcast that is widely considered one of the best and most iconic of all time — something almost everyone has heard of' },
+    { label: 'New', value: 'A popular, well-known podcast that has launched or had a standout season in the last 1-2 years' },
   ],
   music_artists: [
     { label: 'Surprise me', value: 'Surprise me with an artist I wouldn\'t normally listen to but would love based on my taste' },
