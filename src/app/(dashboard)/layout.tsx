@@ -19,7 +19,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <header className="sticky top-0 z-40 border-b border-zinc-200 bg-white/80 backdrop-blur-lg dark:border-zinc-800 dark:bg-zinc-900/80">
+      <header className="sticky top-0 z-40 border-b border-zinc-800 bg-zinc-900/95 backdrop-blur-lg">
         <div className="mx-auto max-w-5xl px-4">
           <div className="flex h-14 items-center justify-between">
             <Link href="/dashboard">
