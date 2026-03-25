@@ -87,22 +87,7 @@ export async function searchBooks(query: string) {
 
   const googleResults = (data.items || []).filter(isValidBook).map(mapVolume);
 
-  // Supplement with SerpAPI for better popular book coverage
-  try {
-    const { searchBooksViaSerpAPI } = await import('./serpapi-books');
-    const serpResults = await searchBooksViaSerpAPI(query);
-    const existingTitles = new Set(googleResults.map((r) => r.title.toLowerCase()));
-    const newSerpResults = serpResults.filter(
-      (r: { title: string }) => !existingTitles.has(r.title.toLowerCase())
-    );
-    // SerpAPI results go first (more relevant), then Google Books
-    const combined = [...newSerpResults, ...googleResults].slice(0, 15);
-    if (combined.length >= 5) return combined;
-  } catch {
-    // SerpAPI failed, continue with what we have
-  }
-
-  // If still few results, supplement with Open Library
+  // If few results, supplement with Open Library
   if (googleResults.length < 5) {
     try {
       const { searchOpenLibrary } = await import('./open-library');
