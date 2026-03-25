@@ -61,13 +61,11 @@ export function RecommendationCard({
     }
   }
 
-  const [showFeedbackReason, setShowFeedbackReason] = useState(false);
-
   async function handleFeedback(feedback: 'good' | 'bad', reason?: string) {
     setCurrentFeedback(feedback);
-    await onFeedback(recommendation.id, feedback, reason);
-    if (feedback === 'bad' && !reason) {
-      setShowFeedbackReason(true);
+    await onFeedback(recommendation.id, feedback, reason || (feedback === 'bad' ? 'not_my_style' : undefined));
+    if (feedback === 'bad') {
+      setDismissed(true);
     }
   }
 
@@ -269,41 +267,6 @@ export function RecommendationCard({
               </button>
             </div>
 
-            {/* Feedback reason follow-up */}
-            {showFeedbackReason && (
-              <div className="mt-2 border-t border-zinc-100 pt-2 dark:border-zinc-800">
-                <p className="mb-1.5 text-xs text-zinc-500">Why wasn&apos;t this right?</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    { label: 'Already seen', value: 'already_seen' },
-                    { label: 'Not my style', value: 'not_my_style' },
-                    { label: 'Too similar', value: 'too_similar' },
-                    { label: 'Not what I asked for', value: 'not_what_i_asked' },
-                  ].map((opt) => (
-                    <button
-                      key={opt.value}
-                      onClick={() => {
-                        handleFeedback('bad', opt.value);
-                        setShowFeedbackReason(false);
-                        setDismissed(true);
-                      }}
-                      className="rounded-full border border-zinc-200 px-2.5 py-1 text-xs text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => {
-                      setShowFeedbackReason(false);
-                      setDismissed(true);
-                    }}
-                    className="px-2 py-1 text-xs text-zinc-400"
-                  >
-                    Skip
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
