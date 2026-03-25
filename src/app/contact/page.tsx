@@ -4,9 +4,7 @@ export default function ContactPage() {
   return (
     <div className="flex min-h-screen flex-col bg-zinc-950 text-white">
       <header className="border-b border-zinc-800 px-6 py-4">
-        <Link href="/" className="text-lg font-black tracking-tighter">
-          RECOMMNDER
-        </Link>
+        <Link href="/"><img src="/recommnderwhite.svg" alt="RECOMMNDER" className="h-6" /></Link>
       </header>
 
       <main className="mx-auto w-full max-w-2xl flex-1 px-6 py-12">
@@ -28,7 +26,7 @@ export default function ContactPage() {
       </main>
 
       <footer className="border-t border-zinc-800 px-6 py-6 text-center">
-        <p className="text-xs text-zinc-700">RECOMMNDER</p>
+        <img src="/recommnderwhite.svg" alt="RECOMMNDER" className="h-4 opacity-30" />
       </footer>
     </div>
   );

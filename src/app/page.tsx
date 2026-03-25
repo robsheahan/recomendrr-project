@@ -10,9 +10,7 @@ export default function HomePage() {
       {/* Hero */}
       <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
         <div className="space-y-6">
-          <h1 className="text-5xl font-black tracking-tighter sm:text-7xl">
-            RECOMMNDER
-          </h1>
+          <img src="/recommnderwhite.svg" alt="RECOMMNDER" className="h-12 sm:h-16" />
           <p className="mx-auto max-w-xs text-base leading-relaxed text-zinc-400 sm:max-w-sm sm:text-lg">
             Discover movies, shows, books and music you&apos;ll love — tailored
             to your taste by AI.
@@ -70,9 +68,7 @@ export default function HomePage() {
               Privacy Policy
             </Link>
           </div>
-          <p className="text-xs text-zinc-700">
-            RECOMMNDER
-          </p>
+          <img src="/recommnderwhite.svg" alt="RECOMMNDER" className="h-4 opacity-30" />
         </div>
       </footer>
     </div>

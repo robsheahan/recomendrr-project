@@ -21,9 +21,7 @@ export default async function OnboardingLayout({
       <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
           <Link href="/onboarding">
-            <h1 className="text-lg font-black tracking-tighter text-zinc-900 dark:text-zinc-50">
-              RECOMMNDER
-            </h1>
+            <img src="/recommnderwhite.svg" alt="RECOMMNDER" className="h-6" />
           </Link>
           <Link
             href="/dashboard?skip_onboarding=1"

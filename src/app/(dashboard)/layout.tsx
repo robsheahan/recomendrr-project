@@ -23,9 +23,7 @@ export default async function DashboardLayout({
         <div className="mx-auto max-w-5xl px-4">
           <div className="flex h-14 items-center justify-between">
             <Link href="/dashboard">
-              <h1 className="text-lg font-black tracking-tighter text-zinc-900 dark:text-zinc-50">
-                RECOMMNDER
-              </h1>
+              <img src="/recommnderwhite.svg" alt="RECOMMNDER" className="h-6" />
             </Link>
             <form action="/api/auth/signout" method="post">
               <button

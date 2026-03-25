@@ -43,9 +43,7 @@ export default function SignupPage() {
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center">
           <Link href="/">
-            <h1 className="text-2xl font-black tracking-tighter text-white">
-              RECOMMNDER
-            </h1>
+            <img src="/recommnderwhite.svg" alt="RECOMMNDER" className="h-8" />
           </Link>
           <p className="mt-2 text-sm text-zinc-500">
             Create your account
