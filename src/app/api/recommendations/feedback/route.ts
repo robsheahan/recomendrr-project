@@ -33,7 +33,14 @@ export async function POST(request: NextRequest) {
   const updateData: Record<string, unknown> = {
     feedback,
     feedback_at: new Date().toISOString(),
+    status: feedback === 'bad' ? 'dismissed' : undefined,
+    status_changed_at: feedback === 'bad' ? new Date().toISOString() : undefined,
   };
+
+  // Remove undefined values
+  for (const key of Object.keys(updateData)) {
+    if (updateData[key] === undefined) delete updateData[key];
+  }
 
   if (reason && validReasons.includes(reason)) {
     updateData.feedback_reason = reason;
