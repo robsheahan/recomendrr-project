@@ -37,12 +37,36 @@ export async function GET() {
     ratingsByCategory[category] = (ratingsByCategory[category] || 0) + 1;
   }
 
-  const categories = userCategories.map((uc) => ({
-    category: uc.category,
-    onboarding_complete: uc.onboarding_complete,
-    ratingsCount: ratingsByCategory[uc.category] || 0,
-    ratingsRequired: ONBOARDING_RATINGS_REQUIRED,
-  }));
+  // Map legacy categories to new ones and merge counts
+  const categoryMap: Record<string, string> = {
+    fiction_books: 'books',
+    nonfiction_books: 'books',
+    documentaries: 'movies',
+  };
+
+  // Merge legacy rating counts into new categories
+  for (const [legacy, mapped] of Object.entries(categoryMap)) {
+    if (ratingsByCategory[legacy]) {
+      ratingsByCategory[mapped] = (ratingsByCategory[mapped] || 0) + ratingsByCategory[legacy];
+    }
+  }
+
+  // Deduplicate and map categories
+  const seen = new Set<string>();
+  const mappedCategories = [];
+  for (const uc of userCategories) {
+    const mapped = categoryMap[uc.category] || uc.category;
+    if (seen.has(mapped)) continue;
+    seen.add(mapped);
+    mappedCategories.push({
+      category: mapped,
+      onboarding_complete: uc.onboarding_complete,
+      ratingsCount: ratingsByCategory[mapped] || ratingsByCategory[uc.category] || 0,
+      ratingsRequired: ONBOARDING_RATINGS_REQUIRED,
+    });
+  }
+
+  const categories = mappedCategories;
 
   const nextCategory = categories.find((c) => !c.onboarding_complete);
   const allComplete = categories.every((c) => c.onboarding_complete);
