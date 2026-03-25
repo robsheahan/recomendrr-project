@@ -28,9 +28,12 @@ const CATEGORY_MAP: Record<string, string> = {
   documentaries: 'movies',
 };
 
+const CATEGORY_ORDER = ['movies', 'tv_shows', 'books', 'podcasts', 'music_artists'];
+
 export default function SavedPage() {
   const [items, setItems] = useState<SavedItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/recommendations/saved')
@@ -71,10 +74,14 @@ export default function SavedPage() {
     grouped[cat].push(item);
   }
 
-  const categoryOrder = ['movies', 'tv_shows', 'books', 'podcasts', 'music_artists'];
-  const sortedCategories = Object.keys(grouped).sort(
-    (a, b) => categoryOrder.indexOf(a) - categoryOrder.indexOf(b)
-  );
+  const categoriesWithItems = CATEGORY_ORDER.filter((cat) => grouped[cat]?.length > 0);
+
+  // Auto-select first category if none selected
+  const activeCat = selectedCategory && grouped[selectedCategory]
+    ? selectedCategory
+    : categoriesWithItems[0] || null;
+
+  const activeItems = activeCat ? grouped[activeCat] || [] : [];
 
   return (
     <div className="space-y-6">
@@ -95,37 +102,53 @@ export default function SavedPage() {
           </p>
         </div>
       ) : (
-        <div className="space-y-8">
-          {sortedCategories.map((cat) => (
-            <div key={cat}>
-              <div className="mb-3 flex items-center gap-2">
-                <CategoryIcon category={cat} className="h-5 w-5 text-zinc-500 dark:text-zinc-400" />
-                <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+        <>
+          {/* Category cards */}
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+            {categoriesWithItems.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`flex flex-col items-center gap-1.5 rounded-xl border-2 p-3 transition-all ${
+                  activeCat === cat
+                    ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900'
+                    : 'border-zinc-200 bg-white hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-500'
+                }`}
+              >
+                <CategoryIcon
+                  category={cat}
+                  className={`h-5 w-5 ${activeCat === cat ? '' : 'text-zinc-500 dark:text-zinc-400'}`}
+                />
+                <span className={`text-xs font-medium ${activeCat === cat ? '' : 'text-zinc-700 dark:text-zinc-300'}`}>
                   {CATEGORY_LABELS[cat] || cat}
-                </h3>
-                <span className="text-xs text-zinc-400">
+                </span>
+                <span className={`text-xs ${activeCat === cat ? 'opacity-70' : 'text-zinc-400'}`}>
                   {grouped[cat].length}
                 </span>
-              </div>
-              <div className="space-y-3">
-                {grouped[cat].map((item) => (
-                  <RecommendationCard
-                    key={item.id}
-                    recommendation={item}
-                    onAction={handleAction}
-                    onFeedback={async (id, feedback, reason) => {
-                      await fetch('/api/recommendations/feedback', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ recommendationId: id, feedback, reason }),
-                      });
-                    }}
-                  />
-                ))}
-              </div>
+              </button>
+            ))}
+          </div>
+
+          {/* Active category items */}
+          {activeCat && activeItems.length > 0 && (
+            <div className="space-y-3">
+              {activeItems.map((item) => (
+                <RecommendationCard
+                  key={item.id}
+                  recommendation={item}
+                  onAction={handleAction}
+                  onFeedback={async (id, feedback, reason) => {
+                    await fetch('/api/recommendations/feedback', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ recommendationId: id, feedback, reason }),
+                    });
+                  }}
+                />
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
     </div>
   );

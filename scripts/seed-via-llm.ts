@@ -31,7 +31,11 @@ async function generateTitleList(category: string, prompt: string): Promise<{ ti
   if (!res.ok) throw new Error(`OpenAI ${res.status}`);
   const data = await res.json();
   const parsed = JSON.parse(data.choices[0].message.content);
-  return parsed.items || parsed.books || parsed.movies || parsed.shows || parsed.artists || parsed.podcasts || parsed;
+  // Handle any key the LLM might use
+  if (Array.isArray(parsed)) return parsed;
+  const values = Object.values(parsed);
+  const arr = values.find((v) => Array.isArray(v));
+  return (arr as { title: string; creator: string }[]) || [];
 }
 
 // --- Google Books Lookup ---
