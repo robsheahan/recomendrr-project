@@ -236,34 +236,19 @@ Return valid JSON only.`,
 
 // --- Generation ---
 
-export const CATEGORY_FINGERPRINT_MIN_RATINGS = 8;
-export const CATEGORY_REGEN_THRESHOLDS = [8, 15, 30, 50];
-export const CATEGORY_REGEN_INTERVAL_AFTER_50 = 20;
+export const CATEGORY_FINGERPRINT_MIN_RATINGS = 5;
+export const CATEGORY_REGEN_INTERVAL = 5; // Update every 5 new ratings
 
 export function shouldRegenerateCategoryFingerprint(
   currentRatings: number,
   ratingsAtGeneration: number
 ): boolean {
-  for (const threshold of CATEGORY_REGEN_THRESHOLDS) {
-    if (ratingsAtGeneration < threshold && currentRatings >= threshold) return true;
-  }
-  if (currentRatings >= 50 && (currentRatings - ratingsAtGeneration) >= CATEGORY_REGEN_INTERVAL_AFTER_50) return true;
+  if (ratingsAtGeneration === 0 && currentRatings >= CATEGORY_FINGERPRINT_MIN_RATINGS) return true;
+  if (currentRatings - ratingsAtGeneration >= CATEGORY_REGEN_INTERVAL) return true;
   return false;
 }
 
-export async function generateCategoryFingerprint(
-  ratings: (Rating & { item: Item })[],
-  category: string,
-  crossCategorySummary?: string | null
-): Promise<CategoryFingerprintData | null> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return null;
-
-  const cat = ['fiction_books', 'nonfiction_books'].includes(category) ? 'books' : category;
-  const prompt = CATEGORY_PROMPTS[cat];
-  if (!prompt) return null;
-
-  // Build rating summary for the LLM
+function formatRatingsForLLM(ratings: (Rating & { item: Item })[]): string {
   const sorted = [...ratings].sort((a, b) => b.score - a.score);
   const lines: string[] = [];
 
@@ -274,13 +259,61 @@ export async function generateCategoryFingerprint(
     lines.push(`${r.score}/5 — ${r.item.title}${r.item.year ? ` (${r.item.year})` : ''}${genres}${tagInfo}`);
   }
 
-  let userMessage = `Here are this user's ${ratings.length} ratings in ${cat}:\n\n${lines.join('\n')}`;
+  return lines.join('\n');
+}
+
+export async function generateCategoryFingerprint(
+  ratings: (Rating & { item: Item })[],
+  category: string,
+  crossCategorySummary?: string | null,
+  previousFingerprint?: CategoryFingerprintData | null,
+  ratingsAtLastGeneration?: number
+): Promise<{ fingerprint: CategoryFingerprintData; evolutionNotes: string | null } | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+
+  const cat = ['fiction_books', 'nonfiction_books'].includes(category) ? 'books' : category;
+  const prompt = CATEGORY_PROMPTS[cat];
+  if (!prompt) return null;
+
+  const isUpdate = previousFingerprint && ratingsAtLastGeneration && ratingsAtLastGeneration > 0;
+
+  let userMessage: string;
+
+  if (isUpdate) {
+    // EVOLUTION MODE: pass previous fingerprint + only new ratings
+    const newRatings = ratings.slice(0, ratings.length - ratingsAtLastGeneration);
+    const allRatingsSummary = formatRatingsForLLM(ratings);
+    const newRatingsSummary = newRatings.length > 0 ? formatRatingsForLLM(newRatings) : 'No new ratings';
+
+    userMessage = `EXISTING FINGERPRINT (evolve this — do not replace, refine and supplement):
+${JSON.stringify(previousFingerprint, null, 2)}
+
+COMPLETE RATING HISTORY (${ratings.length} total):
+${allRatingsSummary}
+
+NEW RATINGS SINCE LAST UPDATE (${newRatings.length} new):
+${newRatingsSummary}
+
+Update the fingerprint to incorporate the new ratings. Keep what's still accurate, adjust what has shifted, and note any evolution in the summary. The new data supplements the old — don't lose established patterns, but refine them with fresh evidence.
+
+Also provide an "evolution_notes" field (string) describing what changed: e.g. "Recent ratings show a growing interest in psychological thrillers, while the preference for ensemble casts remains strong."`;
+  } else {
+    // INITIAL GENERATION: all ratings
+    userMessage = `Here are this user's ${ratings.length} ratings in ${cat}:\n\n${formatRatingsForLLM(ratings)}`;
+    userMessage += '\n\nAnalyse these ratings and infer this person\'s deep taste fingerprint for this category.';
+    userMessage += '\n\nAlso provide an "evolution_notes" field (string) with a brief note on the key patterns you see.';
+  }
 
   if (crossCategorySummary) {
     userMessage += `\n\nCross-category context: ${crossCategorySummary}`;
   }
 
-  userMessage += '\n\nAnalyse these ratings and infer this person\'s deep taste fingerprint for this category.';
+  // Modify system prompt to include evolution_notes in response
+  const systemPromptWithEvolution = prompt.replace(
+    'Return valid JSON only.',
+    'Also include "evolution_notes": "string describing what changed or key patterns". Return valid JSON only.'
+  );
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -291,7 +324,7 @@ export async function generateCategoryFingerprint(
     body: JSON.stringify({
       model: 'gpt-4o-mini',
       messages: [
-        { role: 'system', content: prompt },
+        { role: 'system', content: systemPromptWithEvolution },
         { role: 'user', content: userMessage },
       ],
       temperature: 0.3,
@@ -302,7 +335,10 @@ export async function generateCategoryFingerprint(
   if (!res.ok) return null;
 
   const data = await res.json();
-  return JSON.parse(data.choices[0].message.content);
+  const parsed = JSON.parse(data.choices[0].message.content);
+  const evolutionNotes = parsed.evolution_notes || null;
+  delete parsed.evolution_notes;
+  return { fingerprint: parsed as CategoryFingerprintData, evolutionNotes };
 }
 
 // --- Format for LLM prompt ---

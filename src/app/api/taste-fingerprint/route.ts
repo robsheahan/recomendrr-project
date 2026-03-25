@@ -149,22 +149,25 @@ export async function GET() {
       const result = await generateCategoryFingerprint(
         catRatings,
         cat,
-        data?.taste_thesis || null
+        data?.taste_thesis || null,
+        null,
+        0
       );
 
       if (result) {
         await supabase.from('taste_fingerprints').insert({
           user_id: user.id,
           category: cat,
-          fingerprint: result,
+          fingerprint: result.fingerprint,
           generated_at: new Date().toISOString(),
           ratings_count_at_generation: catRatings.length,
           fingerprint_version: 1,
+          evolution_notes: result.evolutionNotes,
         });
 
         newCategoryFingerprints!.push({
           category: cat,
-          fingerprint: result,
+          fingerprint: result.fingerprint,
           generated_at: new Date().toISOString(),
           ratings_count_at_generation: catRatings.length,
         });

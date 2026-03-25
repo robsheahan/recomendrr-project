@@ -180,7 +180,7 @@ export async function POST(request: NextRequest) {
     if (categoryRatings.length >= CATEGORY_FINGERPRINT_MIN_RATINGS) {
       const { data: catFpRecord } = await supabase
         .from('taste_fingerprints')
-        .select('fingerprint, ratings_count_at_generation')
+        .select('fingerprint, ratings_count_at_generation, fingerprint_version')
         .eq('user_id', user.id)
         .eq('category', category)
         .single();
@@ -195,18 +195,21 @@ export async function POST(request: NextRequest) {
         const result = await generateCategoryFingerprint(
           categoryRatings,
           category,
-          tasteThesis
+          tasteThesis,
+          catFpRecord?.fingerprint || null,
+          catRatingsAtGen
         );
 
         if (result) {
-          catFingerprint = result;
+          catFingerprint = result.fingerprint;
           const upsertData = {
             user_id: user.id,
             category,
-            fingerprint: result,
+            fingerprint: result.fingerprint,
             generated_at: new Date().toISOString(),
             ratings_count_at_generation: categoryRatings.length,
-            fingerprint_version: (catFpRecord?.ratings_count_at_generation ? 2 : 1),
+            fingerprint_version: (catFpRecord?.fingerprint_version || 0) + 1,
+            evolution_notes: result.evolutionNotes,
           };
 
           if (catFpRecord) {

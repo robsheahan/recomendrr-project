@@ -1,5 +1,11 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  generateCategoryFingerprint,
+  shouldRegenerateCategoryFingerprint,
+  CATEGORY_FINGERPRINT_MIN_RATINGS,
+} from '@/lib/category-fingerprints';
+import { CATEGORY_DB_MAP } from '@/lib/constants';
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -127,6 +133,114 @@ export async function POST(request: NextRequest) {
       })
       .eq('id', existingRec.id);
   }
+
+  // Check if category fingerprint needs updating (non-blocking)
+  (async () => {
+    try {
+      // Map the item's category to the active category
+      const categoryMap: Record<string, string> = {
+        fiction_books: 'books', nonfiction_books: 'books', documentaries: 'movies',
+      };
+      const activeCat = categoryMap[item.category] || item.category;
+      const dbCats = CATEGORY_DB_MAP[activeCat] || [activeCat];
+
+      // Count ratings in this category
+      const { data: catRatings } = await supabase
+        .from('ratings')
+        .select('*, item:items!inner(*)')
+        .eq('user_id', user.id)
+        .in('items.category', dbCats);
+
+      if (!catRatings || catRatings.length < CATEGORY_FINGERPRINT_MIN_RATINGS) return;
+
+      // Check if fingerprint needs regen
+      const { data: fpRecord } = await supabase
+        .from('taste_fingerprints')
+        .select('fingerprint, ratings_count_at_generation, fingerprint_version, taste_thesis')
+        .eq('user_id', user.id)
+        .eq('category', activeCat)
+        .single();
+
+      const ratingsAtGen = fpRecord?.ratings_count_at_generation || 0;
+
+      if (!shouldRegenerateCategoryFingerprint(catRatings.length, ratingsAtGen)) return;
+
+      const ratingsWithItems = catRatings.map((r) => ({ ...r, item: r.item }));
+
+      // Get cross-category thesis for context
+      const { data: crossFp } = await supabase
+        .from('taste_fingerprints')
+        .select('taste_thesis')
+        .eq('user_id', user.id)
+        .is('category', null)
+        .single();
+
+      const result = await generateCategoryFingerprint(
+        ratingsWithItems,
+        activeCat,
+        crossFp?.taste_thesis || null,
+        fpRecord?.fingerprint || null,
+        ratingsAtGen
+      );
+
+      if (result) {
+        const upsertData = {
+          user_id: user.id,
+          category: activeCat,
+          fingerprint: result.fingerprint,
+          generated_at: new Date().toISOString(),
+          ratings_count_at_generation: catRatings.length,
+          fingerprint_version: (fpRecord?.fingerprint_version || 0) + 1,
+          evolution_notes: result.evolutionNotes,
+        };
+
+        if (fpRecord) {
+          await supabase.from('taste_fingerprints').update(upsertData)
+            .eq('user_id', user.id).eq('category', activeCat);
+        } else {
+          await supabase.from('taste_fingerprints').insert(upsertData);
+        }
+
+        // Also update cross-category fingerprint
+        const { generateTasteFingerprint } = await import('@/lib/taste-fingerprint');
+        const { data: allRatings } = await supabase
+          .from('ratings')
+          .select('*, item:items(*)')
+          .eq('user_id', user.id);
+
+        if (allRatings && allRatings.length >= 5) {
+          const allWithItems = allRatings.map((r) => ({ ...r, item: r.item }));
+          const crossResult = await generateTasteFingerprint(allWithItems, crossFp ? undefined : null);
+
+          const crossUpsert = {
+            user_id: user.id,
+            category: null,
+            fingerprint: crossResult.fingerprint,
+            generated_at: new Date().toISOString(),
+            ratings_count_at_generation: allRatings.length,
+            taste_thesis: crossResult.tasteThesis,
+            evolution_notes: crossResult.evolutionNotes,
+            cross_category_patterns: crossResult.crossCategoryPatterns,
+          };
+
+          const { data: existingCross } = await supabase
+            .from('taste_fingerprints')
+            .select('id')
+            .eq('user_id', user.id)
+            .is('category', null)
+            .single();
+
+          if (existingCross) {
+            await supabase.from('taste_fingerprints').update(crossUpsert).eq('id', existingCross.id);
+          } else {
+            await supabase.from('taste_fingerprints').insert(crossUpsert);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Fingerprint update after rating:', err);
+    }
+  })();
 
   return NextResponse.json({ success: true, itemId });
 }
