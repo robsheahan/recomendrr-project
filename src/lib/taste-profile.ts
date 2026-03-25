@@ -8,6 +8,7 @@ import {
 import { computeCreatorAffinities, formatCreatorAffinities } from './creator-affinity';
 import { analyseTagPreferences, formatTagPreferences } from './tag-analysis';
 import { formatUserTagWeights } from './tag-efficacy';
+import { computeQualityFloor, formatQualityFloor } from './quality-floor';
 
 export interface TasteProfile {
   category: string;
@@ -32,6 +33,7 @@ export interface TasteProfile {
   tagPreferencesSection: string | null;
   tagWeightsSection: string | null;
   categoryFingerprintSection: string | null;
+  qualityFloorSection: string | null;
 }
 
 export function buildTasteProfile(
@@ -52,6 +54,10 @@ export function buildTasteProfile(
   userTagWeights: Record<string, Record<string, number>> | null = null,
   categoryFingerprintSection: string | null = null,
 ): TasteProfile {
+  // Compute quality floor
+  const qf = computeQualityFloor(ratings, category);
+  const qualityFloorSection = qf ? formatQualityFloor(qf) : null;
+
   // Compute creator affinities
   const creatorAffinities = computeCreatorAffinities(ratings, category);
   const creatorAffinitySection = formatCreatorAffinities(creatorAffinities, category);
@@ -120,6 +126,7 @@ export function buildTasteProfile(
     tagPreferencesSection,
     tagWeightsSection,
     categoryFingerprintSection,
+    qualityFloorSection,
   };
 }
 
@@ -142,6 +149,12 @@ export function formatTasteProfileForLLM(profile: TasteProfile): string {
   // --- Per-category fingerprint (highest priority signal) ---
   if (profile.categoryFingerprintSection) {
     lines.push(profile.categoryFingerprintSection);
+    lines.push('');
+  }
+
+  // --- Quality floor ---
+  if (profile.qualityFloorSection) {
+    lines.push(profile.qualityFloorSection);
     lines.push('');
   }
 
