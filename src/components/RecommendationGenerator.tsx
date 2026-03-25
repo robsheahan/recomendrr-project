@@ -114,14 +114,7 @@ export function RecommendationGenerator() {
         setHasFingerprint(!!data.fingerprint);
       });
 
-    // Load any pending recommendations from previous session
-    fetch('/api/recommendations/pending')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.recommendations?.length > 0) {
-          setRecommendations(data.recommendations);
-        }
-      });
+    // Pending recommendations removed — only show when user explicitly requests
   }, []);
 
   // Fetch genres when category changes
