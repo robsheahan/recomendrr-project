@@ -102,12 +102,20 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // Get cross-category fingerprint
   const { data } = await supabase
     .from('taste_fingerprints')
     .select('fingerprint, generated_at, ratings_count_at_generation, fingerprint_version, evolution_notes, taste_thesis, cross_category_patterns, rating_distribution')
     .eq('user_id', user.id)
     .is('category', null)
     .single();
+
+  // Get per-category fingerprints
+  const { data: categoryFingerprints } = await supabase
+    .from('taste_fingerprints')
+    .select('category, fingerprint, generated_at, ratings_count_at_generation')
+    .eq('user_id', user.id)
+    .not('category', 'is', null);
 
   return NextResponse.json({
     fingerprint: data?.fingerprint || null,
@@ -118,5 +126,11 @@ export async function GET() {
     tasteThesis: data?.taste_thesis || null,
     crossCategoryPatterns: data?.cross_category_patterns || null,
     ratingDistribution: data?.rating_distribution || null,
+    categoryFingerprints: (categoryFingerprints || []).map((cf) => ({
+      category: cf.category,
+      fingerprint: cf.fingerprint,
+      generatedAt: cf.generated_at,
+      ratingsCount: cf.ratings_count_at_generation,
+    })),
   });
 }

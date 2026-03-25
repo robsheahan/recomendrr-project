@@ -17,6 +17,12 @@ import {
 } from '@/lib/collaborative';
 import { fetchOMDBByTitle, computeQualityScore } from '@/lib/omdb';
 import { computeUserTagWeights } from '@/lib/tag-efficacy';
+import {
+  generateCategoryFingerprint,
+  formatCategoryFingerprint,
+  shouldRegenerateCategoryFingerprint,
+  CATEGORY_FINGERPRINT_MIN_RATINGS,
+} from '@/lib/category-fingerprints';
 
 export async function POST(request: NextRequest) {
   try {
@@ -158,8 +164,66 @@ export async function POST(request: NextRequest) {
       }
     } catch (err) {
       console.error('Fingerprint regen failed:', err);
-      // Continue with stale fingerprint
     }
+  }
+
+  // --- Per-category fingerprint ---
+  let categoryFingerprintSection: string | null = null;
+  try {
+    const categoryRatings = ratingsWithItems.filter((r) => {
+      const cat = r.item.category;
+      if (category === 'books') return ['books', 'fiction_books', 'nonfiction_books'].includes(cat);
+      if (category === 'movies') return ['movies', 'documentaries'].includes(cat);
+      return cat === category;
+    });
+
+    if (categoryRatings.length >= CATEGORY_FINGERPRINT_MIN_RATINGS) {
+      const { data: catFpRecord } = await supabase
+        .from('taste_fingerprints')
+        .select('fingerprint, ratings_count_at_generation')
+        .eq('user_id', user.id)
+        .eq('category', category)
+        .single();
+
+      let catFingerprint = catFpRecord?.fingerprint;
+      const catRatingsAtGen = catFpRecord?.ratings_count_at_generation || 0;
+
+      const needsCatRegen = !catFingerprint ||
+        shouldRegenerateCategoryFingerprint(categoryRatings.length, catRatingsAtGen);
+
+      if (needsCatRegen) {
+        const result = await generateCategoryFingerprint(
+          categoryRatings,
+          category,
+          tasteThesis
+        );
+
+        if (result) {
+          catFingerprint = result;
+          const upsertData = {
+            user_id: user.id,
+            category,
+            fingerprint: result,
+            generated_at: new Date().toISOString(),
+            ratings_count_at_generation: categoryRatings.length,
+            fingerprint_version: (catFpRecord?.ratings_count_at_generation ? 2 : 1),
+          };
+
+          if (catFpRecord) {
+            await supabase.from('taste_fingerprints').update(upsertData)
+              .eq('user_id', user.id).eq('category', category);
+          } else {
+            await supabase.from('taste_fingerprints').insert(upsertData);
+          }
+        }
+      }
+
+      if (catFingerprint) {
+        categoryFingerprintSection = formatCategoryFingerprint(catFingerprint, category);
+      }
+    }
+  } catch (err) {
+    console.error('Category fingerprint error:', err);
   }
 
   // --- Confidence calibration ---
@@ -268,6 +332,7 @@ export async function POST(request: NextRequest) {
     calibration,
     collaborativeSection,
     userTagWeights,
+    categoryFingerprintSection,
   );
 
   // --- Generate recommendations ---

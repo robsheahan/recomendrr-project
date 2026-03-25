@@ -31,6 +31,7 @@ export interface TasteProfile {
   creatorAffinitySection: string | null;
   tagPreferencesSection: string | null;
   tagWeightsSection: string | null;
+  categoryFingerprintSection: string | null;
 }
 
 export function buildTasteProfile(
@@ -49,6 +50,7 @@ export function buildTasteProfile(
   calibration: { high: number | null; medium: number | null; low: number | null; total: number } | null = null,
   collaborativeSection: string | null = null,
   userTagWeights: Record<string, Record<string, number>> | null = null,
+  categoryFingerprintSection: string | null = null,
 ): TasteProfile {
   // Compute creator affinities
   const creatorAffinities = computeCreatorAffinities(ratings, category);
@@ -117,6 +119,7 @@ export function buildTasteProfile(
     creatorAffinitySection,
     tagPreferencesSection,
     tagWeightsSection,
+    categoryFingerprintSection,
   };
 }
 
@@ -135,6 +138,12 @@ export function formatTasteProfileForLLM(profile: TasteProfile): string {
   const lines: string[] = [];
   const totalCategoryRatings =
     profile.highlyRated.length + profile.moderatelyRated.length + profile.lowRated.length;
+
+  // --- Per-category fingerprint (highest priority signal) ---
+  if (profile.categoryFingerprintSection) {
+    lines.push(profile.categoryFingerprintSection);
+    lines.push('');
+  }
 
   // --- Taste thesis (most information-dense summary) ---
   if (profile.tasteThesis) {
