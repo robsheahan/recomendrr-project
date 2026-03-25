@@ -26,7 +26,17 @@ export default async function DashboardPage({
     .select('category, onboarding_complete')
     .eq('user_id', user.id);
 
-  const hasCategories = categories && categories.length > 0;
+  // Map legacy categories to new ones for display
+  const categoryMap: Record<string, string> = {
+    fiction_books: 'books',
+    nonfiction_books: 'books',
+    documentaries: 'movies',
+  };
+  const uniqueCategories = new Set(
+    (categories || []).map((c) => categoryMap[c.category] || c.category)
+  );
+  const categoryCount = uniqueCategories.size;
+  const hasCategories = categoryCount > 0;
 
   // If no categories and not skipping, go to onboarding
   if (!skipOnboarding && !hasCategories) {
@@ -63,7 +73,7 @@ export default async function DashboardPage({
             <p className="text-xs text-zinc-500">Ratings</p>
           </div>
           <div>
-            <p className="text-2xl font-bold text-white">{categories?.length || 0}</p>
+            <p className="text-2xl font-bold text-white">{categoryCount}</p>
             <p className="text-xs text-zinc-500">Categories</p>
           </div>
           <div>
@@ -72,7 +82,7 @@ export default async function DashboardPage({
           </div>
         </div>
 
-        {(categories?.length || 0) < 5 && (
+        {categoryCount < 5 && (
           <Link
             href="/onboarding"
             className="mt-4 inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-zinc-300 backdrop-blur-sm transition-colors hover:bg-white/20"
