@@ -65,22 +65,48 @@ function mapVolume(v: GoogleBooksVolume) {
 // --- Search (Google Books + Open Library fallback) ---
 
 export async function searchBooks(query: string) {
+  // Filter out obvious junk from Google Books
+  function isValidBook(v: GoogleBooksVolume): boolean {
+    const info = v.volumeInfo;
+    if (!info.title || info.title.length < 2) return false;
+    // Filter academic papers, periodicals, reports
+    const junkPatterns = /^(proceedings|bulletin|report|journal|transactions|annals|dictionary of|encyclopedia|handbook of|quarterly|monthly|review of|advances in)/i;
+    if (junkPatterns.test(info.title)) return false;
+    // Must have at least an author
+    if (!info.authors || info.authors.length === 0) return false;
+    return true;
+  }
+
   // Search Google Books first
   const data = await booksFetch<{ items?: GoogleBooksVolume[] }>('/volumes', {
     q: query,
-    maxResults: '15',
+    maxResults: '20',
     orderBy: 'relevance',
     langRestrict: 'en',
   });
 
-  const googleResults = (data.items || []).map(mapVolume);
+  const googleResults = (data.items || []).filter(isValidBook).map(mapVolume);
 
-  // If we got few results, supplement with Open Library
+  // Supplement with SerpAPI for better popular book coverage
+  try {
+    const { searchBooksViaSerpAPI } = await import('./serpapi-books');
+    const serpResults = await searchBooksViaSerpAPI(query);
+    const existingTitles = new Set(googleResults.map((r) => r.title.toLowerCase()));
+    const newSerpResults = serpResults.filter(
+      (r: { title: string }) => !existingTitles.has(r.title.toLowerCase())
+    );
+    // SerpAPI results go first (more relevant), then Google Books
+    const combined = [...newSerpResults, ...googleResults].slice(0, 15);
+    if (combined.length >= 5) return combined;
+  } catch {
+    // SerpAPI failed, continue with what we have
+  }
+
+  // If still few results, supplement with Open Library
   if (googleResults.length < 5) {
     try {
       const { searchOpenLibrary } = await import('./open-library');
       const olResults = await searchOpenLibrary(query);
-      // Deduplicate by title
       const googleTitles = new Set(googleResults.map((r) => r.title.toLowerCase()));
       const newResults = olResults.filter(
         (r: { title: string }) => !googleTitles.has(r.title.toLowerCase())
