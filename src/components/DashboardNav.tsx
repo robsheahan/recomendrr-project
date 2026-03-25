@@ -23,8 +23,8 @@ export function DashboardNav() {
             href={item.href}
             className={`border-b-2 py-3 text-sm font-medium transition-colors ${
               isActive
-                ? 'border-zinc-900 text-zinc-900 dark:border-zinc-50 dark:text-zinc-50'
-                : 'border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-600 dark:hover:text-zinc-200'
+                ? 'border-white text-white'
+                : 'border-transparent text-zinc-400 hover:border-zinc-500 hover:text-zinc-200'
             }`}
           >
             {item.label}

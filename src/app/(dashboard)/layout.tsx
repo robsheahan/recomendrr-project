@@ -28,7 +28,7 @@ export default async function DashboardLayout({
             <form action="/api/auth/signout" method="post">
               <button
                 type="submit"
-                className="rounded-lg px-3 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                className="rounded-lg px-3 py-1.5 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
               >
                 Sign out
               </button>
