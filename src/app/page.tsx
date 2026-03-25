@@ -10,7 +10,7 @@ export default function HomePage() {
       {/* Hero */}
       <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
         <div className="space-y-6">
-          <img src="/recommnderwhite.svg" alt="RECOMMNDER" className="h-12 sm:h-16" />
+          <img src="/recommnderwhite.svg" alt="RECOMMNDER" className="mx-auto h-16 sm:h-24" />
           <p className="mx-auto max-w-xs text-base leading-relaxed text-zinc-400 sm:max-w-sm sm:text-lg">
             Discover movies, shows, books and music you&apos;ll love — tailored
             to your taste by AI.
