@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { buildTasteProfile } from '@/lib/taste-profile';
 import { generateRecommendations, generateRefinement } from '@/lib/llm';
 import { searchByCategory, getWatchProviders } from '@/lib/tmdb';
+
+export const maxDuration = 60;
 import { COOLDOWN_DAYS, MAX_RECOMMENDATION_COUNT } from '@/lib/constants';
 import {
   computeRatingDistribution,
