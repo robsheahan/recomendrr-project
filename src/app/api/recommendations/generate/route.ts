@@ -369,6 +369,8 @@ export async function POST(request: NextRequest) {
   const batchId = crypto.randomUUID();
   const isTmdbCategory = ['movies', 'tv_shows', 'documentaries'].includes(category);
 
+  console.log(`[generate] LLM returned ${llmResponse.recommendations.length} recs for ${category}`);
+
   // Step 1: Search all recommendations in parallel
   const searchResults = await Promise.allSettled(
     llmResponse.recommendations.map(async (rec) => {
@@ -585,6 +587,17 @@ export async function POST(request: NextRequest) {
     .filter((r): r is PromiseFulfilledResult<ValidCandidate | null> => r.status === 'fulfilled')
     .map((r) => r.value)
     .filter((c): c is ValidCandidate => c !== null);
+
+  // Log failures for debugging
+  const searchFailures = searchResults.filter((r) => r.status === 'rejected');
+  const candidateFailures = candidateResults.filter((r) => r.status === 'rejected');
+  if (searchFailures.length > 0) {
+    console.error(`[generate] ${searchFailures.length} search(es) failed:`, searchFailures.map((r) => (r as PromiseRejectedResult).reason?.message || r));
+  }
+  if (candidateFailures.length > 0) {
+    console.error(`[generate] ${candidateFailures.length} candidate(s) failed:`, candidateFailures.map((r) => (r as PromiseRejectedResult).reason?.message || r));
+  }
+  console.log(`[generate] ${validatedSearches.length} validated searches → ${candidates.length} candidates`);
 
   // Step 4: Sort by quality score and take top 5, insert in parallel
   candidates.sort((a, b) => b.qualityScore - a.qualityScore);
