@@ -25,22 +25,17 @@ interface RecommendationItem {
 interface RecommendationCardProps {
   recommendation: RecommendationItem;
   onAction: (id: string, status: string, score?: number) => Promise<void>;
-  onFeedback: (id: string, feedback: 'good' | 'bad', reason?: string) => Promise<void>;
 }
 
 export function RecommendationCard({
   recommendation,
   onAction,
-  onFeedback,
 }: RecommendationCardProps) {
   const [acting, setActing] = useState(false);
   const [hoveredStar, setHoveredStar] = useState(0);
   const [selectedStar, setSelectedStar] = useState(0);
   const [dismissed, setDismissed] = useState(false);
   const [actionTaken, setActionTaken] = useState<string | null>(null);
-  const [currentFeedback, setCurrentFeedback] = useState<string | null>(
-    recommendation.feedback || null
-  );
 
   const { item, reason, confidence } = recommendation;
 
@@ -58,14 +53,6 @@ export function RecommendationCard({
       }
     } finally {
       setActing(false);
-    }
-  }
-
-  async function handleFeedback(feedback: 'good' | 'bad', reason?: string) {
-    setCurrentFeedback(feedback);
-    await onFeedback(recommendation.id, feedback, reason || (feedback === 'bad' ? 'not_my_style' : undefined));
-    if (feedback === 'bad') {
-      setDismissed(true);
     }
   }
 
@@ -183,43 +170,88 @@ export function RecommendationCard({
                 {reason}
               </p>
             )}
+
+            {/* Streaming availability */}
+            {(() => {
+              const wp = item.metadata?.watch_providers as {
+                streaming?: { name: string; logo_url: string | null; provider_id: number }[];
+                rent?: { name: string; logo_url: string | null; provider_id: number }[];
+                link?: string | null;
+              } | null;
+              if (!wp) return null;
+
+              const streaming = wp.streaming || [];
+              const rent = wp.rent || [];
+              const hasProviders = streaming.length > 0 || rent.length > 0;
+              if (!hasProviders) return null;
+
+              return (
+                <div className="mt-3">
+                  {streaming.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+                        Stream on
+                      </span>
+                      {streaming.slice(0, 5).map((p) => (
+                        <span
+                          key={p.provider_id}
+                          className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400"
+                        >
+                          {p.logo_url && (
+                            <Image
+                              src={p.logo_url}
+                              alt={p.name}
+                              width={14}
+                              height={14}
+                              className="rounded-sm"
+                            />
+                          )}
+                          {p.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {streaming.length === 0 && rent.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+                        Rent on
+                      </span>
+                      {rent.slice(0, 4).map((p) => (
+                        <span
+                          key={p.provider_id}
+                          className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                        >
+                          {p.logo_url && (
+                            <Image
+                              src={p.logo_url}
+                              alt={p.name}
+                              width={14}
+                              height={14}
+                              className="rounded-sm"
+                            />
+                          )}
+                          {p.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {wp.link && (
+                    <a
+                      href={wp.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 inline-block text-[10px] text-zinc-400 underline decoration-zinc-300 hover:text-zinc-600 dark:decoration-zinc-600 dark:hover:text-zinc-300"
+                    >
+                      View all options — JustWatch
+                    </a>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
-          {/* Feedback buttons */}
+          {/* Actions */}
           <div className="mt-3 flex items-center gap-2 border-t border-zinc-100 pt-3 dark:border-zinc-800">
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => handleFeedback('good')}
-                disabled={acting}
-                className={`rounded-lg p-1.5 text-sm transition-colors ${
-                  currentFeedback === 'good'
-                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                    : 'text-zinc-400 hover:bg-zinc-50 hover:text-green-600 dark:hover:bg-zinc-800 dark:hover:text-green-400'
-                }`}
-                title="Good recommendation"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
-                  <path d="M1 8.25a1.25 1.25 0 1 1 2.5 0v7.5a1.25 1.25 0 1 1-2.5 0v-7.5ZM5.5 6.048V15.5a.75.75 0 0 0 .3.6l3.2 2.4a.75.75 0 0 0 1.2-.6V14.5h4.55a1.75 1.75 0 0 0 1.733-1.508l.973-6.81A1.75 1.75 0 0 0 15.723 4.5H9.5V2.25A2.25 2.25 0 0 0 7.25 0h-.5a.75.75 0 0 0-.671.415L5.5 6.048Z" />
-                </svg>
-              </button>
-              <button
-                onClick={() => handleFeedback('bad')}
-                disabled={acting}
-                className={`rounded-lg p-1.5 text-sm transition-colors ${
-                  currentFeedback === 'bad'
-                    ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                    : 'text-zinc-400 hover:bg-zinc-50 hover:text-red-600 dark:hover:bg-zinc-800 dark:hover:text-red-400'
-                }`}
-                title="Bad recommendation"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 rotate-180">
-                  <path d="M1 8.25a1.25 1.25 0 1 1 2.5 0v7.5a1.25 1.25 0 1 1-2.5 0v-7.5ZM5.5 6.048V15.5a.75.75 0 0 0 .3.6l3.2 2.4a.75.75 0 0 0 1.2-.6V14.5h4.55a1.75 1.75 0 0 0 1.733-1.508l.973-6.81A1.75 1.75 0 0 0 15.723 4.5H9.5V2.25A2.25 2.25 0 0 0 7.25 0h-.5a.75.75 0 0 0-.671.415L5.5 6.048Z" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="mx-1 h-4 w-px bg-zinc-200 dark:bg-zinc-700" />
-
             {/* Star rating */}
             <div className="flex items-center gap-0.5">
               {[1, 2, 3, 4, 5].map((star) => {
@@ -245,19 +277,23 @@ export function RecommendationCard({
 
             {/* Actions */}
             <div className="flex flex-wrap gap-1.5">
-              <button
-                onClick={() => {
-                  if (selectedStar > 0) {
-                    handleAction('rated', selectedStar);
-                  } else {
-                    handleAction('saved');
-                  }
-                }}
-                disabled={acting}
-                className="rounded-lg bg-zinc-900 px-3 py-1 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
-              >
-                {acting ? 'Saving...' : 'Save for later'}
-              </button>
+              {selectedStar > 0 ? (
+                <button
+                  onClick={() => handleAction('rated', selectedStar)}
+                  disabled={acting}
+                  className="rounded-lg bg-zinc-900 px-3 py-1 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                >
+                  {acting ? 'Saving...' : `Rate ${selectedStar}/5`}
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleAction('saved')}
+                  disabled={acting}
+                  className="rounded-lg bg-zinc-900 px-3 py-1 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                >
+                  {acting ? 'Saving...' : 'Save for later'}
+                </button>
+              )}
               <button
                 onClick={() => handleAction('dismissed')}
                 disabled={acting}

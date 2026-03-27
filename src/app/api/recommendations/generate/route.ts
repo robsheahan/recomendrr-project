@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { buildTasteProfile } from '@/lib/taste-profile';
 import { generateRecommendations, generateRefinement } from '@/lib/llm';
-import { searchByCategory } from '@/lib/tmdb';
+import { searchByCategory, getWatchProviders } from '@/lib/tmdb';
 import { COOLDOWN_DAYS, MAX_RECOMMENDATION_COUNT } from '@/lib/constants';
 import {
   computeRatingDistribution,
@@ -11,9 +11,8 @@ import {
   generateMissAnalysis,
 } from '@/lib/taste-fingerprint';
 import {
-  computeCollaborativeSignals,
-  computeAllSimilarities,
   formatCollaborativeSignals,
+  getCachedCollaborativeSignals,
 } from '@/lib/collaborative';
 import { fetchOMDBByTitle, computeQualityScore } from '@/lib/omdb';
 import { computeUserTagWeights } from '@/lib/tag-efficacy';
@@ -39,23 +38,68 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Category is required' }, { status: 400 });
   }
 
-  // Get user profile
-  const { data: profile } = await supabase
-    .from('users')
-    .select('tier, monthly_request_count, monthly_request_limit')
-    .eq('id', user.id)
-    .single();
+  // --- Phase 1: Parallel initial data fetch ---
+  const [
+    profileResult,
+    ratingsResult,
+    fingerprintResult,
+    feedbackRecsResult,
+    notInterestedResult,
+    cooldownsResult,
+    sessionResult,
+    prevRecsResult,
+  ] = await Promise.all([
+    supabase
+      .from('users')
+      .select('tier, monthly_request_count, monthly_request_limit')
+      .eq('id', user.id)
+      .single(),
+    supabase
+      .from('ratings')
+      .select('*, item:items(*)')
+      .eq('user_id', user.id),
+    supabase
+      .from('taste_fingerprints')
+      .select('*')
+      .eq('user_id', user.id)
+      .is('category', null)
+      .single(),
+    supabase
+      .from('recommendations')
+      .select('confidence, feedback')
+      .eq('user_id', user.id)
+      .not('feedback', 'is', null)
+      .not('confidence', 'is', null),
+    supabase
+      .from('recommendations')
+      .select('item:items(title)')
+      .eq('user_id', user.id)
+      .eq('status', 'not_interested'),
+    supabase
+      .from('recommendation_cooldowns')
+      .select('item:items(title)')
+      .eq('user_id', user.id),
+    sessionId
+      ? supabase
+          .from('conversation_sessions')
+          .select('messages')
+          .eq('id', sessionId)
+          .eq('user_id', user.id)
+          .single()
+      : Promise.resolve({ data: null }),
+    supabase
+      .from('recommendations')
+      .select('item:items(title, external_id, category)')
+      .eq('user_id', user.id)
+      .gt('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
+  ]);
 
+  const profile = profileResult.data;
   if (!profile) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
-  // Get ALL ratings with item details (cross-media)
-  const { data: ratings } = await supabase
-    .from('ratings')
-    .select('*, item:items(*)')
-    .eq('user_id', user.id);
-
+  const ratings = ratingsResult.data;
   if (!ratings || ratings.length === 0) {
     return NextResponse.json(
       { error: 'Rate some items first to get recommendations' },
@@ -64,37 +108,91 @@ export async function POST(request: NextRequest) {
   }
 
   const ratingsWithItems = ratings.map((r) => ({ ...r, item: r.item }));
+  const fingerprintRecord = fingerprintResult.data;
 
-  // Compute rating distribution
+  // --- Phase 2: Parallel secondary computations ---
   const distribution = computeRatingDistribution(ratingsWithItems);
 
-  // --- Fingerprint with staleness check ---
-  const { data: fingerprintRecord } = await supabase
-    .from('taste_fingerprints')
-    .select('*')
-    .eq('user_id', user.id)
-    .is('category', null)
-    .single();
+  // Confidence calibration (sync computation from already-fetched data)
+  let calibration: { high: number | null; medium: number | null; low: number | null; total: number } | null = null;
+  const feedbackRecs = feedbackRecsResult.data;
+  if (feedbackRecs && feedbackRecs.length >= 5) {
+    const byConfidence: Record<string, { good: number; total: number }> = {};
+    for (const r of feedbackRecs) {
+      const c = r.confidence || 'unknown';
+      if (!byConfidence[c]) byConfidence[c] = { good: 0, total: 0 };
+      byConfidence[c].total++;
+      if (r.feedback === 'good') byConfidence[c].good++;
+    }
+    calibration = {
+      high: byConfidence['high'] ? byConfidence['high'].good / byConfidence['high'].total : null,
+      medium: byConfidence['medium'] ? byConfidence['medium'].good / byConfidence['medium'].total : null,
+      low: byConfidence['low'] ? byConfidence['low'].good / byConfidence['low'].total : null,
+      total: feedbackRecs.length,
+    };
+  }
 
+  // Exclusion lists (sync computation from already-fetched data)
+  const notInterestedTitles = (notInterestedResult.data || [])
+    .map((r) => (r.item as unknown as { title: string })?.title)
+    .filter(Boolean);
+
+  const previouslyRecommendedTitles = (cooldownsResult.data || [])
+    .map((c) => (c.item as unknown as { title: string })?.title)
+    .filter(Boolean);
+
+  const ratedTitles = ratingsWithItems
+    .filter((r) => r.item?.category === category)
+    .map((r) => r.item?.title)
+    .filter(Boolean);
+
+  const allExcluded = [...new Set([...previouslyRecommendedTitles, ...ratedTitles])];
+
+  // Conversation history (from already-fetched data)
+  let conversationHistory: { role: 'user' | 'assistant'; content: string }[] = [];
+  if (sessionResult.data?.messages) {
+    conversationHistory = sessionResult.data.messages as { role: 'user' | 'assistant'; content: string }[];
+  }
+
+  // Previous rec titles (from already-fetched data)
+  const prevRecTitles = new Set(
+    (prevRecsResult.data || [])
+      .filter((r) => {
+        const item = r.item as unknown as { category: string };
+        return item?.category === category;
+      })
+      .map((r) => (r.item as unknown as { title: string })?.title?.toLowerCase())
+      .filter(Boolean)
+  );
+
+  // --- Phase 3: Fingerprint + parallel side work ---
   let fingerprint = fingerprintRecord?.fingerprint || null;
   let tasteThesis = fingerprintRecord?.taste_thesis || null;
   let evolutionNotes = fingerprintRecord?.evolution_notes || null;
   let crossCategoryPatterns = fingerprintRecord?.cross_category_patterns || null;
   let missAnalysis = fingerprintRecord?.miss_analysis || null;
 
-  // Count bad feedback since last fingerprint generation
   const ratingsAtGen = fingerprintRecord?.ratings_count_at_generation || 0;
-  const { count: badFeedbackCount } = await supabase
-    .from('recommendations')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-    .eq('feedback', 'bad')
-    .gt('created_at', fingerprintRecord?.generated_at || '2000-01-01');
+
+  // Bad feedback count + collaborative signals + tag weights in parallel
+  const [badFeedbackResult, collaborativeSignals, userTagWeights] = await Promise.all([
+    supabase
+      .from('recommendations')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('feedback', 'bad')
+      .gt('created_at', fingerprintRecord?.generated_at || '2000-01-01'),
+    // Use cached collaborative signals instead of recomputing
+    getCachedCollaborativeSignals(supabase, user.id, category).catch(() => []),
+    computeUserTagWeights(supabase, user.id, category).catch(() => null),
+  ]);
+
+  const collaborativeSection = formatCollaborativeSignals(collaborativeSignals);
 
   const needsRegen = !fingerprint || shouldRegenerateFingerprint(
     ratings.length,
     ratingsAtGen,
-    badFeedbackCount || 0
+    badFeedbackResult.count || 0
   );
 
   if (needsRegen) {
@@ -229,95 +327,6 @@ export async function POST(request: NextRequest) {
     console.error('Category fingerprint error:', err);
   }
 
-  // --- Confidence calibration ---
-  let calibration: { high: number | null; medium: number | null; low: number | null; total: number } | null = null;
-
-  const { data: feedbackRecs } = await supabase
-    .from('recommendations')
-    .select('confidence, feedback')
-    .eq('user_id', user.id)
-    .not('feedback', 'is', null)
-    .not('confidence', 'is', null);
-
-  if (feedbackRecs && feedbackRecs.length >= 5) {
-    const byConfidence: Record<string, { good: number; total: number }> = {};
-    for (const r of feedbackRecs) {
-      const c = r.confidence || 'unknown';
-      if (!byConfidence[c]) byConfidence[c] = { good: 0, total: 0 };
-      byConfidence[c].total++;
-      if (r.feedback === 'good') byConfidence[c].good++;
-    }
-    calibration = {
-      high: byConfidence['high'] ? byConfidence['high'].good / byConfidence['high'].total : null,
-      medium: byConfidence['medium'] ? byConfidence['medium'].good / byConfidence['medium'].total : null,
-      low: byConfidence['low'] ? byConfidence['low'].good / byConfidence['low'].total : null,
-      total: feedbackRecs.length,
-    };
-  }
-
-  // --- Collaborative signals ---
-  let collaborativeSection: string | null = null;
-  try {
-    // Recompute similarities if fingerprint was regenerated
-    if (needsRegen) {
-      await computeAllSimilarities(supabase, user.id);
-    }
-    const signals = await computeCollaborativeSignals(supabase, user.id, category, 10);
-    collaborativeSection = formatCollaborativeSignals(signals);
-  } catch (err) {
-    console.error('Collaborative signals error:', err);
-    // Non-blocking — continue without collaborative data
-  }
-
-  // --- Exclusion lists ---
-  const { data: notInterestedRecs } = await supabase
-    .from('recommendations')
-    .select('item:items(title)')
-    .eq('user_id', user.id)
-    .eq('status', 'not_interested');
-
-  const notInterestedTitles = (notInterestedRecs || [])
-    .map((r) => (r.item as unknown as { title: string })?.title)
-    .filter(Boolean);
-
-  const { data: cooldowns } = await supabase
-    .from('recommendation_cooldowns')
-    .select('item:items(title)')
-    .eq('user_id', user.id);
-
-  const previouslyRecommendedTitles = (cooldowns || [])
-    .map((c) => (c.item as unknown as { title: string })?.title)
-    .filter(Boolean);
-
-  const ratedTitles = ratingsWithItems
-    .filter((r) => r.item?.category === category)
-    .map((r) => r.item?.title)
-    .filter(Boolean);
-
-  const allExcluded = [...new Set([...previouslyRecommendedTitles, ...ratedTitles])];
-
-  // --- Conversation history ---
-  let conversationHistory: { role: 'user' | 'assistant'; content: string }[] = [];
-  if (sessionId) {
-    const { data: session } = await supabase
-      .from('conversation_sessions')
-      .select('messages')
-      .eq('id', sessionId)
-      .eq('user_id', user.id)
-      .single();
-    if (session?.messages) {
-      conversationHistory = session.messages as { role: 'user' | 'assistant'; content: string }[];
-    }
-  }
-
-  // --- Compute user tag weights ---
-  let userTagWeights: Record<string, Record<string, number>> | null = null;
-  try {
-    userTagWeights = await computeUserTagWeights(supabase, user.id, category);
-  } catch {
-    // Non-blocking
-  }
-
   // --- Build taste profile ---
   const tasteProfile = buildTasteProfile(
     ratingsWithItems,
@@ -356,31 +365,52 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `Failed to generate recommendations: ${message}` }, { status: 500 });
   }
 
-  // --- Process recommendations ---
+  // --- Process recommendations (parallelized) ---
   const batchId = crypto.randomUUID();
-  const usedTitles = new Set<string>();
-  const usedExternalIds = new Set<string>();
   const isTmdbCategory = ['movies', 'tv_shows', 'documentaries'].includes(category);
 
-  // Get recently recommended item titles (last 30 days)
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const { data: allPrevRecs } = await supabase
-    .from('recommendations')
-    .select('item:items(title, external_id, category)')
-    .eq('user_id', user.id)
-    .gt('created_at', thirtyDaysAgo);
-
-  const prevRecTitles = new Set(
-    (allPrevRecs || [])
-      .filter((r) => {
-        const item = r.item as unknown as { category: string };
-        return item?.category === category;
-      })
-      .map((r) => (r.item as unknown as { title: string })?.title?.toLowerCase())
-      .filter(Boolean)
+  // Step 1: Search all recommendations in parallel
+  const searchResults = await Promise.allSettled(
+    llmResponse.recommendations.map(async (rec) => {
+      const results = await searchByCategory(category, rec.title);
+      return { rec, results };
+    })
   );
 
-  // Step 1: Validate all candidates and fetch quality scores
+  // Step 2: Validate and deduplicate (must be sequential for dedup)
+  const usedTitles = new Set<string>();
+  const usedExternalIds = new Set<string>();
+
+  interface ValidatedSearch {
+    rec: typeof llmResponse.recommendations[0];
+    match: Awaited<ReturnType<typeof searchByCategory>>[0];
+  }
+
+  const validatedSearches: ValidatedSearch[] = [];
+
+  for (const result of searchResults) {
+    if (result.status !== 'fulfilled') continue;
+    const { rec, results } = result.value;
+
+    if (usedTitles.has(rec.title.toLowerCase())) continue;
+    if (prevRecTitles.has(rec.title.toLowerCase())) continue;
+
+    const recTitle = rec.title.toLowerCase();
+    const match =
+      results.find((s) => s.title.toLowerCase() === recTitle) ||
+      results.find((s) => s.title.toLowerCase().includes(recTitle)) ||
+      results.find((s) => recTitle.includes(s.title.toLowerCase())) ||
+      results[0];
+
+    if (!match) continue;
+    if (usedExternalIds.has(match.external_id)) continue;
+
+    validatedSearches.push({ rec, match });
+    usedTitles.add(match.title.toLowerCase());
+    usedExternalIds.add(match.external_id);
+  }
+
+  // Step 3: Process all validated candidates in parallel (DB checks + quality scores)
   interface ValidCandidate {
     rec: typeof llmResponse.recommendations[0];
     itemId: string;
@@ -388,24 +418,8 @@ export async function POST(request: NextRequest) {
     qualityScore: number;
   }
 
-  const candidates: ValidCandidate[] = [];
-
-  for (const rec of llmResponse.recommendations) {
-    try {
-      if (usedTitles.has(rec.title.toLowerCase())) continue;
-      if (prevRecTitles.has(rec.title.toLowerCase())) continue;
-
-      const searchResults = await searchByCategory(category, rec.title);
-      const recTitle = rec.title.toLowerCase();
-      const match =
-        searchResults.find((s) => s.title.toLowerCase() === recTitle) ||
-        searchResults.find((s) => s.title.toLowerCase().includes(recTitle)) ||
-        searchResults.find((s) => recTitle.includes(s.title.toLowerCase())) ||
-        searchResults[0];
-
-      if (!match) continue;
-      if (usedExternalIds.has(match.external_id)) continue;
-
+  const candidateResults = await Promise.allSettled(
+    validatedSearches.map(async ({ rec, match }): Promise<ValidCandidate | null> => {
       // Upsert item
       const { data: existingItem } = await supabase
         .from('items')
@@ -442,73 +456,95 @@ export async function POST(request: NextRequest) {
           })
           .select('id')
           .single();
-        if (insertError || !newItem) continue;
+        if (insertError || !newItem) return null;
         itemId = newItem.id;
       }
 
-      // Skip already rated
-      const { data: existingRating } = await supabase
-        .from('ratings')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('item_id', itemId)
-        .single();
+      // Check already rated + pending in parallel
+      const [ratingCheck, pendingCheck] = await Promise.all([
+        supabase
+          .from('ratings')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('item_id', itemId)
+          .single(),
+        supabase
+          .from('recommendations')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('item_id', itemId)
+          .eq('status', 'pending')
+          .single(),
+      ]);
 
-      if (existingRating) continue;
+      if (ratingCheck.data) return null;
+      if (pendingCheck.data) return null;
 
-      // Skip pending duplicates
-      const { data: recentRec } = await supabase
-        .from('recommendations')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('item_id', itemId)
-        .eq('status', 'pending')
-        .single();
-
-      if (recentRec) continue;
-
-      // Fetch quality scores based on category
+      // Fetch quality scores + watch providers
       let qualityScore = match.rating || 5;
 
       if (isTmdbCategory) {
-        // Movies/TV/Docs: use OMDB for IMDB + RT scores
+        // Fetch OMDB scores + watch providers in parallel
+        const tmdbType = category === 'tv_shows' ? 'tv' : 'movie';
+        const tmdbId = parseInt(match.external_id);
+
+        const [omdbResult, watchResult] = await Promise.allSettled([
+          existingMetadata.imdb_rating
+            ? Promise.resolve(null)
+            : fetchOMDBByTitle(match.title, match.year),
+          existingMetadata.watch_providers
+            ? Promise.resolve(null)
+            : getWatchProviders(tmdbId, tmdbType as 'movie' | 'tv', 'AU'),
+        ]);
+
         if (existingMetadata.imdb_rating) {
           qualityScore = existingMetadata.imdb_rating as number;
         } else {
-          try {
-            const omdb = await fetchOMDBByTitle(match.title, match.year);
-            if (omdb) {
-              const composite = computeQualityScore(omdb);
-              if (composite) qualityScore = composite;
-
-              await supabase
-                .from('items')
-                .update({
-                  metadata: {
-                    ...existingMetadata,
-                    tmdb_rating: match.rating,
-                    tmdb_vote_count: match.vote_count,
-                    imdb_rating: omdb.imdbRating,
-                    imdb_votes: omdb.imdbVotes,
-                    rotten_tomatoes: omdb.rottenTomatoes,
-                    metascore: omdb.metascore,
-                    imdb_id: omdb.imdbId,
-                  },
-                })
-                .eq('id', itemId);
-            }
-          } catch {
-            // OMDB fetch failed, continue with TMDB rating
+          const omdb = omdbResult.status === 'fulfilled' ? omdbResult.value : null;
+          if (omdb) {
+            const composite = computeQualityScore(omdb);
+            if (composite) qualityScore = composite;
           }
         }
+
+        // Build metadata update with OMDB + watch providers
+        const metadataUpdate: Record<string, unknown> = { ...existingMetadata };
+        let needsUpdate = false;
+
+        const omdb = omdbResult.status === 'fulfilled' ? omdbResult.value : null;
+        if (omdb && !existingMetadata.imdb_rating) {
+          Object.assign(metadataUpdate, {
+            tmdb_rating: match.rating,
+            tmdb_vote_count: match.vote_count,
+            imdb_rating: omdb.imdbRating,
+            imdb_votes: omdb.imdbVotes,
+            rotten_tomatoes: omdb.rottenTomatoes,
+            metascore: omdb.metascore,
+            imdb_id: omdb.imdbId,
+          });
+          needsUpdate = true;
+        }
+
+        const watchProviders = watchResult.status === 'fulfilled' ? watchResult.value : null;
+        if (watchProviders && !existingMetadata.watch_providers) {
+          metadataUpdate.watch_providers = watchProviders;
+          metadataUpdate.watch_providers_updated_at = new Date().toISOString();
+          needsUpdate = true;
+        }
+
+        if (needsUpdate) {
+          supabase
+            .from('items')
+            .update({ metadata: metadataUpdate })
+            .eq('id', itemId)
+            .then(() => {});
+        }
       } else if (category === 'fiction_books' || category === 'nonfiction_books') {
-        // Books: use Google Books averageRating (already in match.rating)
         qualityScore = match.rating || 0;
-        // Also check cached metadata
         if (existingMetadata.google_rating) {
           qualityScore = existingMetadata.google_rating as number;
         } else if (match.rating > 0) {
-          await supabase
+          supabase
             .from('items')
             .update({
               metadata: {
@@ -517,14 +553,14 @@ export async function POST(request: NextRequest) {
                 google_vote_count: match.vote_count,
               },
             })
-            .eq('id', itemId);
+            .eq('id', itemId)
+            .then(() => {});
         }
       } else if (category === 'music_artists') {
-        // Music: use Spotify popularity (0-100, convert to 0-10)
         const popularity = (match.metadata as Record<string, unknown>)?.popularity as number || 0;
         qualityScore = popularity / 10;
         if (!existingMetadata.spotify_popularity && popularity > 0) {
-          await supabase
+          supabase
             .from('items')
             .update({
               metadata: {
@@ -532,56 +568,59 @@ export async function POST(request: NextRequest) {
                 spotify_popularity: popularity,
               },
             })
-            .eq('id', itemId);
+            .eq('id', itemId)
+            .then(() => {});
         } else if (existingMetadata.spotify_popularity) {
           qualityScore = (existingMetadata.spotify_popularity as number) / 10;
         }
       } else if (category === 'podcasts') {
-        // Podcasts: no reliable quality signal, default score
-        qualityScore = 7; // Neutral — let LLM ordering decide
+        qualityScore = 7;
       }
 
-      candidates.push({ rec, itemId, match, qualityScore });
-      usedTitles.add(match.title.toLowerCase());
-      usedExternalIds.add(match.external_id);
-    } catch (err) {
-      console.error('Error processing recommendation:', err);
-      continue;
-    }
-  }
+      return { rec, itemId, match, qualityScore };
+    })
+  );
 
-  // Step 2: Sort by quality score (highest rated first) and take top 3
+  const candidates = candidateResults
+    .filter((r): r is PromiseFulfilledResult<ValidCandidate | null> => r.status === 'fulfilled')
+    .map((r) => r.value)
+    .filter((c): c is ValidCandidate => c !== null);
+
+  // Step 4: Sort by quality score and take top 5, insert in parallel
   candidates.sort((a, b) => b.qualityScore - a.qualityScore);
 
-  const results = [];
-  for (const candidate of candidates.slice(0, 3)) {
-    const { rec, itemId, match, qualityScore } = candidate;
+  const top3 = candidates.slice(0, 5);
+  const insertResults = await Promise.all(
+    top3.map(async ({ rec, itemId, qualityScore }) => {
+      const { data: recommendation } = await supabase
+        .from('recommendations')
+        .insert({
+          user_id: user.id,
+          item_id: itemId,
+          status: 'pending',
+          reason: rec.reason,
+          model_used: llmResponse.model,
+          batch_id: batchId,
+          intent: intent || refinement || null,
+          confidence: rec.confidence,
+        })
+        .select('*, item:items(*)')
+        .single();
 
-    const { data: recommendation } = await supabase
-      .from('recommendations')
-      .insert({
-        user_id: user.id,
-        item_id: itemId,
-        status: 'pending',
-        reason: rec.reason,
-        model_used: llmResponse.model,
-        batch_id: batchId,
-        intent: intent || refinement || null,
-        confidence: rec.confidence,
-      })
-      .select('*, item:items(*)')
-      .single();
+      if (recommendation) {
+        return {
+          ...recommendation,
+          confidence: rec.confidence,
+          qualityScore,
+        };
+      }
+      return null;
+    })
+  );
 
-    if (recommendation) {
-      results.push({
-        ...recommendation,
-        confidence: rec.confidence,
-        qualityScore,
-      });
-    }
-  }
+  const results = insertResults.filter(Boolean);
 
-  // Save conversation session
+  // --- Save session + increment count in parallel ---
   const assistantMessage = JSON.stringify(llmResponse.recommendations);
   const newMessages = [
     ...conversationHistory,
@@ -590,32 +629,33 @@ export async function POST(request: NextRequest) {
   ];
 
   let currentSessionId = sessionId;
-  if (sessionId) {
-    await supabase
-      .from('conversation_sessions')
-      .update({ messages: newMessages })
-      .eq('id', sessionId);
-  } else {
-    const { data: newSession } = await supabase
-      .from('conversation_sessions')
-      .insert({
-        user_id: user.id,
-        category,
-        intent: intent || null,
-        genre: genre || null,
-        messages: newMessages,
-        batch_ids: [batchId],
-      })
-      .select('id')
-      .single();
-    currentSessionId = newSession?.id;
-  }
 
-  // Increment monthly request count
-  await supabase
-    .from('users')
-    .update({ monthly_request_count: profile.monthly_request_count + 1 })
-    .eq('id', user.id);
+  await Promise.all([
+    sessionId
+      ? supabase
+          .from('conversation_sessions')
+          .update({ messages: newMessages })
+          .eq('id', sessionId)
+      : supabase
+          .from('conversation_sessions')
+          .insert({
+            user_id: user.id,
+            category,
+            intent: intent || null,
+            genre: genre || null,
+            messages: newMessages,
+            batch_ids: [batchId],
+          })
+          .select('id')
+          .single()
+          .then(({ data }) => {
+            if (data) currentSessionId = data.id;
+          }),
+    supabase
+      .from('users')
+      .update({ monthly_request_count: profile.monthly_request_count + 1 })
+      .eq('id', user.id),
+  ]);
 
   return NextResponse.json({
     recommendations: results,

@@ -5,6 +5,7 @@ import {
   shouldRegenerateCategoryFingerprint,
   CATEGORY_FINGERPRINT_MIN_RATINGS,
 } from '@/lib/category-fingerprints';
+import { computeAllSimilarities, computeCollaborativeSignals } from '@/lib/collaborative';
 import { CATEGORY_DB_MAP } from '@/lib/constants';
 
 export async function GET(request: NextRequest) {
@@ -133,6 +134,21 @@ export async function POST(request: NextRequest) {
       })
       .eq('id', existingRec.id);
   }
+
+  // Recompute collaborative similarities + signals in the background (non-blocking)
+  (async () => {
+    try {
+      await computeAllSimilarities(supabase, user.id);
+      // Recompute signals for the item's category
+      const categoryMap: Record<string, string> = {
+        fiction_books: 'books', nonfiction_books: 'books', documentaries: 'movies',
+      };
+      const activeCatForSignals = categoryMap[item.category] || item.category;
+      await computeCollaborativeSignals(supabase, user.id, activeCatForSignals, 20);
+    } catch (err) {
+      console.error('Collaborative recomputation after rating:', err);
+    }
+  })();
 
   // Check if category fingerprint needs updating (non-blocking)
   (async () => {

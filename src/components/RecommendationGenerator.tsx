@@ -237,16 +237,6 @@ export function RecommendationGenerator() {
     }
   }
 
-  async function handleFeedback(id: string, feedback: 'good' | 'bad', reason?: string) {
-    await fetch('/api/recommendations/feedback', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ recommendationId: id, feedback, reason }),
-    });
-    if (feedback === 'bad' && reason) {
-      setDismissedIds((prev) => new Set(prev).add(id));
-    }
-  }
 
   return (
     <div className="space-y-6">
@@ -387,21 +377,12 @@ export function RecommendationGenerator() {
               key={rec.id}
               recommendation={rec}
               onAction={handleAction}
-              onFeedback={handleFeedback}
             />
           ))}
 
-          {/* Get more + Refine — only show when cards are still visible */}
+          {/* Refine — only show when cards are still visible */}
           {!allDismissed && (
             <div className="space-y-3">
-              <button
-                onClick={handleGenerate}
-                disabled={loading}
-                className="w-full rounded-lg border border-zinc-200 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-              >
-                Get more recommendations
-              </button>
-
               <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
                 <p className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
                   Want something different?

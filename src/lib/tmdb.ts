@@ -35,6 +35,7 @@ interface TMDBMovieDetails {
   credits?: {
     crew: { job: string; name: string }[];
   };
+  'watch/providers'?: TMDBWatchProvidersResponse;
 }
 
 interface TMDBTVDetails {
@@ -48,6 +49,94 @@ interface TMDBTVDetails {
   created_by: { name: string }[];
   vote_average: number;
   vote_count: number;
+  'watch/providers'?: TMDBWatchProvidersResponse;
+}
+
+// --- Watch Providers (via JustWatch) ---
+
+interface TMDBWatchProvidersResponse {
+  results: Record<string, TMDBRegionProviders>;
+}
+
+interface TMDBRegionProviders {
+  link?: string;
+  flatrate?: TMDBWatchProvider[];
+  rent?: TMDBWatchProvider[];
+  buy?: TMDBWatchProvider[];
+  free?: TMDBWatchProvider[];
+  ads?: TMDBWatchProvider[];
+}
+
+interface TMDBWatchProvider {
+  provider_id: number;
+  provider_name: string;
+  logo_path: string | null;
+  display_priority: number;
+}
+
+export interface WatchProviderInfo {
+  name: string;
+  logo_url: string | null;
+  provider_id: number;
+}
+
+export interface WatchProviders {
+  streaming: WatchProviderInfo[];
+  rent: WatchProviderInfo[];
+  buy: WatchProviderInfo[];
+  link: string | null;
+  region: string;
+}
+
+const LOGO_BASE = 'https://image.tmdb.org/t/p/w92';
+
+function extractWatchProviders(
+  data: TMDBWatchProvidersResponse | undefined,
+  region: string
+): WatchProviders | null {
+  if (!data?.results) return null;
+  const regionData = data.results[region];
+  if (!regionData) return null;
+
+  function mapProviders(list?: TMDBWatchProvider[]): WatchProviderInfo[] {
+    return (list || [])
+      .sort((a, b) => a.display_priority - b.display_priority)
+      .map((p) => ({
+        name: p.provider_name,
+        logo_url: p.logo_path ? `${LOGO_BASE}${p.logo_path}` : null,
+        provider_id: p.provider_id,
+      }));
+  }
+
+  const streaming = mapProviders(regionData.flatrate || regionData.free || regionData.ads);
+  const rent = mapProviders(regionData.rent);
+  const buy = mapProviders(regionData.buy);
+
+  if (streaming.length === 0 && rent.length === 0 && buy.length === 0) return null;
+
+  return {
+    streaming,
+    rent,
+    buy,
+    link: regionData.link || null,
+    region,
+  };
+}
+
+/** Fetch watch providers for a movie or TV show by TMDB ID */
+export async function getWatchProviders(
+  tmdbId: number,
+  type: 'movie' | 'tv',
+  region = 'AU'
+): Promise<WatchProviders | null> {
+  try {
+    const data = await tmdbFetch<TMDBWatchProvidersResponse>(
+      `/${type}/${tmdbId}/watch/providers`
+    );
+    return extractWatchProviders({ results: data.results }, region);
+  } catch {
+    return null;
+  }
 }
 
 export const MOVIE_GENRE_MAP: Record<number, string> = {
@@ -162,12 +251,13 @@ export async function searchMovies(query: string) {
   return data.results.map(mapMovie);
 }
 
-export async function getMovieDetails(tmdbId: number) {
+export async function getMovieDetails(tmdbId: number, watchRegion = 'AU') {
   const data = await tmdbFetch<TMDBMovieDetails>(
     `/movie/${tmdbId}`,
-    { append_to_response: 'credits' }
+    { append_to_response: 'credits,watch/providers' }
   );
   const director = data.credits?.crew.find((c) => c.job === 'Director')?.name ?? null;
+  const watchProviders = extractWatchProviders(data['watch/providers'], watchRegion);
   return {
     external_id: String(data.id),
     external_source: 'tmdb' as const,
@@ -180,6 +270,7 @@ export async function getMovieDetails(tmdbId: number) {
     image_url: getImageUrl(data.poster_path),
     rating: data.vote_average,
     vote_count: data.vote_count,
+    watchProviders,
   };
 }
 
@@ -225,9 +316,13 @@ export async function searchTVShows(query: string) {
   return data.results.map(mapTVShow);
 }
 
-export async function getTVShowDetails(tmdbId: number) {
-  const data = await tmdbFetch<TMDBTVDetails>(`/tv/${tmdbId}`);
+export async function getTVShowDetails(tmdbId: number, watchRegion = 'AU') {
+  const data = await tmdbFetch<TMDBTVDetails>(
+    `/tv/${tmdbId}`,
+    { append_to_response: 'watch/providers' }
+  );
   const creator = data.created_by?.[0]?.name ?? null;
+  const watchProviders = extractWatchProviders(data['watch/providers'], watchRegion);
   return {
     external_id: String(data.id),
     external_source: 'tmdb' as const,
@@ -241,6 +336,7 @@ export async function getTVShowDetails(tmdbId: number) {
     metadata: { number_of_seasons: data.number_of_seasons },
     rating: data.vote_average,
     vote_count: data.vote_count,
+    watchProviders,
   };
 }
 

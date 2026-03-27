@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { MediaCategory } from '@/types/database';
 
 const VALID_CATEGORIES: MediaCategory[] = [
-  'fiction_books', 'nonfiction_books', 'documentaries',
+  'books', 'fiction_books', 'nonfiction_books', 'documentaries',
   'tv_shows', 'movies', 'podcasts', 'music_artists',
 ];
 

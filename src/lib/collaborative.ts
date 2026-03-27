@@ -263,6 +263,47 @@ export async function updateItemReputation(
     );
 }
 
+// --- Cached Collaborative Signals ---
+
+// Read pre-computed signals from the cache table instead of recomputing on every request
+export async function getCachedCollaborativeSignals(
+  supabase: SupabaseClient,
+  userId: string,
+  category: string,
+  limit: number = 10
+): Promise<{
+  title: string;
+  itemId: string;
+  sourceUserCount: number;
+  avgSimilarity: number;
+  avgRating: number;
+  signalStrength: number;
+}[]> {
+  const { data: signals } = await supabase
+    .from('collaborative_signals')
+    .select('item_id, source_user_count, avg_similarity, avg_rating, signal_strength, item:items(title, category)')
+    .eq('target_user_id', userId)
+    .order('signal_strength', { ascending: false })
+    .limit(limit * 2); // Fetch extra to filter by category
+
+  if (!signals || signals.length === 0) return [];
+
+  return signals
+    .filter((s) => {
+      const item = s.item as unknown as { category: string };
+      return item?.category === category;
+    })
+    .slice(0, limit)
+    .map((s) => ({
+      title: (s.item as unknown as { title: string })?.title || '',
+      itemId: s.item_id,
+      sourceUserCount: s.source_user_count,
+      avgSimilarity: s.avg_similarity,
+      avgRating: s.avg_rating,
+      signalStrength: s.signal_strength,
+    }));
+}
+
 // --- Format for LLM Prompt ---
 
 export function formatCollaborativeSignals(

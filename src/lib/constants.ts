@@ -33,5 +33,5 @@ export const CATEGORY_DB_MAP: Record<string, string[]> = {
 export const ONBOARDING_RATINGS_REQUIRED = 5;
 export const FREE_TIER_MONTHLY_LIMIT = 10;
 export const COOLDOWN_DAYS = 30;
-export const MAX_RECOMMENDATION_COUNT = 3;
-export const RECOMMENDATIONS_PER_REQUEST = 3;
+export const MAX_RECOMMENDATION_COUNT = 5;
+export const RECOMMENDATIONS_PER_REQUEST = 5;
