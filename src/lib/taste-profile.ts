@@ -34,6 +34,14 @@ export interface TasteProfile {
   tagWeightsSection: string | null;
   categoryFingerprintSection: string | null;
   qualityFloorSection: string | null;
+  seedItem: {
+    title: string;
+    category: string;
+    creator?: string;
+    genres?: string[];
+    year?: number;
+    description?: string;
+  } | null;
 }
 
 export function buildTasteProfile(
@@ -53,6 +61,7 @@ export function buildTasteProfile(
   collaborativeSection: string | null = null,
   userTagWeights: Record<string, Record<string, number>> | null = null,
   categoryFingerprintSection: string | null = null,
+  seedItem: TasteProfile['seedItem'] = null,
 ): TasteProfile {
   // Compute quality floor
   const qf = computeQualityFloor(ratings, category);
@@ -127,6 +136,7 @@ export function buildTasteProfile(
     tagWeightsSection,
     categoryFingerprintSection,
     qualityFloorSection,
+    seedItem,
   };
 }
 
@@ -145,6 +155,25 @@ export function formatTasteProfileForLLM(profile: TasteProfile): string {
   const lines: string[] = [];
   const totalCategoryRatings =
     profile.highlyRated.length + profile.moderatelyRated.length + profile.lowRated.length;
+
+  // --- Seed item (highest priority — reframes the entire request) ---
+  if (profile.seedItem) {
+    const seedLabel = categoryLabels[profile.seedItem.category] || profile.seedItem.category;
+    lines.push('SEED ITEM (find recommendations similar to this):');
+    lines.push(`- Title: ${profile.seedItem.title}`);
+    lines.push(`- Category: ${seedLabel}`);
+    if (profile.seedItem.creator) lines.push(`- Creator: ${profile.seedItem.creator}`);
+    if (profile.seedItem.genres?.length) lines.push(`- Genres: ${profile.seedItem.genres.join(', ')}`);
+    if (profile.seedItem.year) lines.push(`- Year: ${profile.seedItem.year}`);
+    if (profile.seedItem.description) lines.push(`- Description: ${profile.seedItem.description}`);
+    lines.push('');
+    lines.push('The user loved this item and wants more like it. Identify the SPECIFIC qualities that make this item appealing — its themes, tone, pacing, emotional register, narrative approach — and find items that share those deep qualities. Do NOT just match on surface genre.');
+    if (profile.seedItem.category !== profile.category) {
+      lines.push(`CROSS-CATEGORY: The seed item is a ${seedLabel} but the user wants ${label}. Find items in the target category that capture the same essence — the themes, emotional resonance, and narrative qualities — not just the same genre label.`);
+    }
+    lines.push('Do NOT recommend the seed item itself or its direct adaptation/source material.');
+    lines.push('');
+  }
 
   // --- Per-category fingerprint (highest priority signal) ---
   if (profile.categoryFingerprintSection) {
@@ -200,6 +229,24 @@ export function formatTasteProfileForLLM(profile: TasteProfile): string {
     lines.push('');
   }
 
+  // --- Cross-category patterns (high priority — this is the unique edge) ---
+  if (profile.crossCategoryPatterns && profile.crossCategoryPatterns.length > 0) {
+    lines.push('CROSS-CATEGORY PATTERNS (themes that recur across ALL media this user consumes):');
+    for (const pattern of profile.crossCategoryPatterns) {
+      lines.push(`- ${pattern}`);
+    }
+    lines.push('');
+  }
+
+  // --- Cross-media highlights ---
+  if (profile.crossMediaHighlights.length > 0) {
+    lines.push('TOP ITEMS FROM OTHER CATEGORIES (use these to inform cross-media taste matching):');
+    for (const item of profile.crossMediaHighlights.slice(0, 5)) {
+      lines.push(`- ${item.title} (${item.score}/5, ${categoryLabels[item.category] || item.category})`);
+    }
+    lines.push('');
+  }
+
   // --- Calibration data ---
   if (profile.calibration && profile.calibration.total >= 5) {
     lines.push('CALIBRATION (how accurate your previous predictions were for this user):');
@@ -210,24 +257,6 @@ export function formatTasteProfileForLLM(profile: TasteProfile): string {
     if (profile.calibration.low !== null)
       lines.push(`- "Low confidence" hit rate: ${Math.round(profile.calibration.low * 100)}%`);
     lines.push('- Only use "high confidence" if you believe hit rate will be 80%+');
-    lines.push('');
-  }
-
-  // --- Cross-category patterns ---
-  if (profile.crossCategoryPatterns && profile.crossCategoryPatterns.length > 0) {
-    lines.push('CROSS-CATEGORY PATTERNS:');
-    for (const pattern of profile.crossCategoryPatterns) {
-      lines.push(`- ${pattern}`);
-    }
-    lines.push('');
-  }
-
-  // --- Cross-media highlights ---
-  if (profile.crossMediaHighlights.length > 0) {
-    lines.push('TOP ITEMS FROM OTHER CATEGORIES:');
-    for (const item of profile.crossMediaHighlights.slice(0, 5)) {
-      lines.push(`- ${item.title} (${item.score}/5, ${categoryLabels[item.category] || item.category})`);
-    }
     lines.push('');
   }
 
@@ -346,7 +375,12 @@ export function formatTasteProfileForLLM(profile: TasteProfile): string {
 
   // --- Request ---
   const genreClause = profile.genre ? ` in the ${profile.genre} genre` : '';
-  lines.push(`Recommend 12 ${label}${genreClause} for this user. Provide exactly 12 different recommendations. Ensure variety — mix different sub-genres, eras, and styles.`);
+  if (profile.seedItem) {
+    const count = 8;
+    lines.push(`Recommend ${count} ${label}${genreClause} similar to "${profile.seedItem.title}". Provide exactly ${count} different recommendations. Each must share deep thematic or tonal qualities with the seed item — not just surface-level genre matching. Still filter through this user's taste profile — don't recommend things they would dislike even if similar to the seed.`);
+  } else {
+    lines.push(`Recommend 12 ${label}${genreClause} for this user. Provide exactly 12 different recommendations. Ensure variety — mix different sub-genres, eras, and styles.`);
+  }
   lines.push('Return as JSON: {"recommendations": [{"title": "...", "year": 2020, "reason": "...", "confidence": "high"}]}');
 
   return lines.join('\n');

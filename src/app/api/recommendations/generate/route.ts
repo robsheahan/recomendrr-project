@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { category, genre, intent, refinement, sessionId } = await request.json();
+  const { category, genre, intent, refinement, sessionId, seedItem } = await request.json();
 
   if (!category) {
     return NextResponse.json({ error: 'Category is required' }, { status: 400 });
@@ -347,6 +347,7 @@ export async function POST(request: NextRequest) {
     collaborativeSection,
     userTagWeights,
     categoryFingerprintSection,
+    seedItem || null,
   );
 
   // --- Generate recommendations ---
@@ -601,8 +602,19 @@ export async function POST(request: NextRequest) {
   }
   console.log(`[generate] ${validatedSearches.length} validated searches → ${candidates.length} candidates`);
 
-  // Step 4: Sort by quality score and take top 5, insert in parallel
-  candidates.sort((a, b) => b.qualityScore - a.qualityScore);
+  // Step 4: Rank by blended score (taste match confidence + quality), take top 5
+  const confidenceWeight: Record<string, number> = { high: 1.0, medium: 0.7, low: 0.4 };
+  candidates.sort((a, b) => {
+    const aConf = confidenceWeight[a.rec.confidence] ?? 0.5;
+    const bConf = confidenceWeight[b.rec.confidence] ?? 0.5;
+    // Normalise quality to 0-1 (scores are typically 0-10)
+    const aQual = Math.min(a.qualityScore / 10, 1);
+    const bQual = Math.min(b.qualityScore / 10, 1);
+    // 60% confidence, 40% quality — taste match matters more than raw score
+    const aBlended = aConf * 0.6 + aQual * 0.4;
+    const bBlended = bConf * 0.6 + bQual * 0.4;
+    return bBlended - aBlended;
+  });
 
   const top3 = candidates.slice(0, 5);
   const insertResults = await Promise.all(
@@ -616,7 +628,7 @@ export async function POST(request: NextRequest) {
           reason: rec.reason,
           model_used: llmResponse.model,
           batch_id: batchId,
-          intent: intent || refinement || null,
+          intent: seedItem ? `Similar to: ${seedItem.title}` : (intent || refinement || null),
           confidence: rec.confidence,
         })
         .select('*, item:items(*)')
