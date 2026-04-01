@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { CATEGORY_LABELS } from '@/lib/constants';
 import { MediaCategory } from '@/types/database';
 import { SearchAndRate } from '@/components/SearchAndRate';
@@ -32,6 +33,7 @@ const FILTER_CATEGORIES: (MediaCategory | 'all')[] = [
 ];
 
 export default function RatingsPage() {
+  const router = useRouter();
   const [ratings, setRatings] = useState<RatingItem[]>([]);
   const [filter, setFilter] = useState<MediaCategory | 'all'>('all');
   const [loading, setLoading] = useState(true);
@@ -160,8 +162,23 @@ export default function RatingsPage() {
                   {CATEGORY_LABELS[rating.item.category as MediaCategory]}
                 </p>
               </div>
-              <div className="shrink-0 text-lg text-amber-500">
-                {renderStars(rating.score)}
+              <div className="flex shrink-0 items-center gap-3">
+                <div className="text-lg text-amber-500">
+                  {renderStars(rating.score)}
+                </div>
+                <button
+                  onClick={() => {
+                    const params = new URLSearchParams({
+                      seedTitle: rating.item.title,
+                      seedCategory: rating.item.category,
+                      targetCategory: rating.item.category,
+                    });
+                    router.push(`/dashboard?${params.toString()}`);
+                  }}
+                  className="rounded-lg px-2.5 py-1 text-[11px] text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                >
+                  More like this
+                </button>
               </div>
             </div>
           ))}

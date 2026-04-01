@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { RecommendationCard } from '@/components/RecommendationCard';
 import { CATEGORY_LABELS } from '@/lib/constants';
 import { CategoryIcon } from '@/components/CategoryIcon';
@@ -31,6 +32,7 @@ const CATEGORY_MAP: Record<string, string> = {
 const CATEGORY_ORDER = ['movies', 'tv_shows', 'books', 'podcasts', 'music_artists'];
 
 export default function SavedPage() {
+  const router = useRouter();
   const [items, setItems] = useState<SavedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -137,6 +139,14 @@ export default function SavedPage() {
                   key={item.id}
                   recommendation={item}
                   onAction={handleAction}
+                  onFindSimilar={(itemInfo, targetCategory) => {
+                    const params = new URLSearchParams({
+                      seedTitle: itemInfo.title,
+                      seedCategory: itemInfo.category,
+                      targetCategory: targetCategory || itemInfo.category,
+                    });
+                    router.push(`/dashboard?${params.toString()}`);
+                  }}
                 />
               ))}
             </div>

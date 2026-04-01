@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { CATEGORY_LABELS } from '@/lib/constants';
 import { MediaCategory } from '@/types/database';
 import Image from 'next/image';
@@ -31,6 +32,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 };
 
 export default function HistoryPage() {
+  const router = useRouter();
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -114,9 +116,24 @@ export default function HistoryPage() {
                       {item.reason}
                     </p>
                   )}
-                  <p className="mt-1 text-xs text-zinc-400">
-                    {new Date(item.created_at).toLocaleDateString()}
-                  </p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <p className="text-xs text-zinc-400">
+                      {new Date(item.created_at).toLocaleDateString()}
+                    </p>
+                    <button
+                      onClick={() => {
+                        const params = new URLSearchParams({
+                          seedTitle: item.item.title,
+                          seedCategory: item.item.category,
+                          targetCategory: item.item.category,
+                        });
+                        router.push(`/dashboard?${params.toString()}`);
+                      }}
+                      className="rounded-lg px-2 py-0.5 text-[11px] text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                    >
+                      More like this
+                    </button>
+                  </div>
                 </div>
               </div>
             );

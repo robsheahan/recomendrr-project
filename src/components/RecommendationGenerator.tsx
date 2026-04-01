@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { CATEGORY_LABELS } from '@/lib/constants';
 import { MediaCategory } from '@/types/database';
 import { RecommendationCard } from './RecommendationCard';
@@ -25,8 +26,25 @@ interface RecommendationItem {
     year: number | null;
     image_url: string | null;
     category: string;
+    external_id?: string;
+    external_source?: string;
     metadata: Record<string, unknown> | null;
   };
+}
+
+interface SeedItem {
+  title: string;
+  category: string;
+  creator?: string;
+  genres?: string[];
+  year?: number;
+  description?: string;
+}
+
+interface DrilldownEntry {
+  seedItem: SeedItem | null;
+  targetCategory: string;
+  recommendations: RecommendationItem[];
 }
 
 const CATEGORY_INTENTS: Record<string, { label: string; value: string }[]> = {
@@ -70,6 +88,8 @@ const DEFAULT_INTENTS = [
 ];
 
 export function RecommendationGenerator() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [categories, setCategories] = useState<UserCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<MediaCategory | null>(null);
   const [genres, setGenres] = useState<string[]>([]);
@@ -87,6 +107,8 @@ export function RecommendationGenerator() {
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
   const [hasFingerprint, setHasFingerprint] = useState(false);
   const [generatingFingerprint, setGeneratingFingerprint] = useState(false);
+  const [seedItem, setSeedItem] = useState<SeedItem | null>(null);
+  const [drilldownStack, setDrilldownStack] = useState<DrilldownEntry[]>([]);
 
   useEffect(() => {
     fetch('/api/onboarding/progress')
@@ -237,6 +259,114 @@ export function RecommendationGenerator() {
     }
   }
 
+  const generateSimilar = useCallback(async (seed: SeedItem, targetCategory: string) => {
+    setLoading(true);
+    setError(null);
+    setRecommendations([]);
+    setDismissedIds(new Set());
+    setSessionId(null);
+
+    await ensureFingerprint();
+
+    try {
+      const res = await fetch('/api/recommendations/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: targetCategory,
+          seedItem: seed,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to generate recommendations');
+      }
+
+      setRecommendations(data.recommendations);
+      setRequestsUsed(data.requestsUsed);
+      setRequestsLimit(data.requestsLimit);
+      setSessionId(data.sessionId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setLoading(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasFingerprint]);
+
+  function handleFindSimilar(item: RecommendationItem['item'], targetCategory?: string) {
+    // Push current state to drilldown stack
+    if (recommendations.length > 0) {
+      setDrilldownStack((prev) => [
+        ...prev.slice(-9), // cap at 10 levels
+        {
+          seedItem,
+          targetCategory: selectedCategory || '',
+          recommendations,
+        },
+      ]);
+    }
+
+    const seed: SeedItem = {
+      title: item.title,
+      category: item.category,
+      creator: item.creator || undefined,
+      genres: item.genres,
+      year: item.year || undefined,
+      description: item.description || undefined,
+    };
+    const target = (targetCategory || item.category) as MediaCategory;
+
+    setSeedItem(seed);
+    setSelectedCategory(target);
+    generateSimilar(seed, target);
+  }
+
+  function handleDrilldownBack(index: number) {
+    const entry = drilldownStack[index];
+    setSeedItem(entry.seedItem);
+    setSelectedCategory(entry.targetCategory as MediaCategory);
+    setRecommendations(entry.recommendations);
+    setDismissedIds(new Set());
+    setDrilldownStack((prev) => prev.slice(0, index));
+  }
+
+  function clearSeedMode() {
+    setSeedItem(null);
+    setDrilldownStack([]);
+    setRecommendations([]);
+    setDismissedIds(new Set());
+  }
+
+  // Handle incoming URL params (from ratings/saved/history pages)
+  useEffect(() => {
+    const seedTitle = searchParams.get('seedTitle');
+    const seedCategory = searchParams.get('seedCategory');
+    const targetCategory = searchParams.get('targetCategory');
+
+    if (seedTitle && seedCategory) {
+      const seed: SeedItem = {
+        title: seedTitle,
+        category: seedCategory,
+      };
+      const target = (targetCategory || seedCategory) as MediaCategory;
+
+      setSeedItem(seed);
+      setSelectedCategory(target);
+
+      // Clear URL params
+      router.replace('/dashboard');
+
+      // Wait for categories to load before generating
+      const timer = setTimeout(() => {
+        generateSimilar(seed, target);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -333,17 +463,19 @@ export function RecommendationGenerator() {
       </div>
 
       {/* Generate button */}
-      <button
-        onClick={handleGenerate}
-        disabled={loading || !selectedCategory}
-        className="w-full rounded-lg bg-zinc-900 px-6 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
-      >
-        {loading
-          ? generatingFingerprint
-            ? 'Analysing your taste profile...'
-            : 'Finding recommendations...'
-          : 'Get Recommendations'}
-      </button>
+      {!seedItem && (
+        <button
+          onClick={handleGenerate}
+          disabled={loading || !selectedCategory}
+          className="w-full rounded-lg bg-zinc-900 px-6 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+        >
+          {loading
+            ? generatingFingerprint
+              ? 'Analysing your taste profile...'
+              : 'Finding recommendations...'
+            : 'Get Recommendations'}
+        </button>
+      )}
 
       {/* Error */}
       {error && (
@@ -364,19 +496,67 @@ export function RecommendationGenerator() {
         </div>
       )}
 
+      {/* Seed mode banner + breadcrumbs */}
+      {seedItem && (
+        <div className="space-y-2">
+          {drilldownStack.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1 text-xs text-zinc-500">
+              <button
+                onClick={clearSeedMode}
+                className="hover:text-zinc-700 dark:hover:text-zinc-300"
+              >
+                Dashboard
+              </button>
+              {drilldownStack.map((entry, i) => (
+                <span key={i} className="flex items-center gap-1">
+                  <span className="text-zinc-300 dark:text-zinc-600">/</span>
+                  <button
+                    onClick={() => handleDrilldownBack(i)}
+                    className="hover:text-zinc-700 dark:hover:text-zinc-300"
+                  >
+                    {entry.seedItem ? `Similar to "${entry.seedItem.title}"` : 'Recommendations'}
+                  </button>
+                </span>
+              ))}
+              <span className="text-zinc-300 dark:text-zinc-600">/</span>
+              <span className="text-zinc-700 dark:text-zinc-300">
+                Similar to &ldquo;{seedItem.title}&rdquo;
+              </span>
+            </div>
+          )}
+          <div className="flex items-center justify-between rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2.5 dark:border-indigo-900 dark:bg-indigo-950/50">
+            <p className="text-sm text-indigo-700 dark:text-indigo-400">
+              Showing {CATEGORY_LABELS[selectedCategory as MediaCategory] || selectedCategory} similar to <span className="font-medium">&ldquo;{seedItem.title}&rdquo;</span>
+              {seedItem.category !== selectedCategory && (
+                <span className="text-indigo-500"> ({CATEGORY_LABELS[seedItem.category as MediaCategory] || seedItem.category})</span>
+              )}
+            </p>
+            <button
+              onClick={clearSeedMode}
+              className="ml-3 rounded-md px-2 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-100 dark:text-indigo-400 dark:hover:bg-indigo-900/50"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Recommendations */}
       {recommendations.length > 0 && (() => {
         const allDismissed = recommendations.every((r) => dismissedIds.has(r.id));
         return (
         <div className="space-y-4">
-          <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
-            Recommended for you
-          </h3>
+          {!seedItem && (
+            <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
+              Recommended for you
+            </h3>
+          )}
           {recommendations.map((rec) => (
             <RecommendationCard
               key={rec.id}
               recommendation={rec}
               onAction={handleAction}
+              onFindSimilar={handleFindSimilar}
             />
           ))}
 

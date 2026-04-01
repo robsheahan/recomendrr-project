@@ -3,39 +3,170 @@
 import { useState } from 'react';
 import Image from 'next/image';
 
+interface ItemInfo {
+  id: string;
+  title: string;
+  creator: string | null;
+  description: string | null;
+  genres: string[];
+  year: number | null;
+  image_url: string | null;
+  category: string;
+  external_id?: string;
+  external_source?: string;
+  metadata: Record<string, unknown> | null;
+}
+
+function WhereToFind({ item }: { item: ItemInfo }) {
+  const wp = item.metadata?.watch_providers as {
+    streaming?: { name: string; logo_url: string | null; provider_id: number }[];
+    rent?: { name: string; logo_url: string | null; provider_id: number }[];
+    link?: string | null;
+  } | null;
+
+  const streaming = wp?.streaming || [];
+  const rent = wp?.rent || [];
+  const hasWatchProviders = streaming.length > 0 || rent.length > 0;
+
+  // Build platform links from external source data
+  const platformLinks: { label: string; url: string; icon: string }[] = [];
+
+  if (item.external_source === 'spotify' && item.external_id) {
+    const type = item.category === 'podcasts' ? 'show' : 'artist';
+    platformLinks.push({
+      label: 'Spotify',
+      url: `https://open.spotify.com/${type}/${item.external_id}`,
+      icon: '🎧',
+    });
+  }
+
+  if (item.external_source === 'google_books' && item.external_id) {
+    platformLinks.push({
+      label: 'Google Books',
+      url: `https://books.google.com/books?id=${item.external_id}`,
+      icon: '📖',
+    });
+  }
+
+  if (!hasWatchProviders && platformLinks.length === 0) return null;
+
+  const actionLabel = item.category === 'music_artists' || item.category === 'podcasts'
+    ? 'Listen on'
+    : item.category === 'fiction_books' || item.category === 'nonfiction_books'
+      ? 'Find on'
+      : streaming.length > 0
+        ? 'Stream on'
+        : 'Rent on';
+
+  return (
+    <div className="mt-3">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+          {actionLabel}
+        </span>
+
+        {/* TMDB watch providers (movies/TV) */}
+        {streaming.length > 0 &&
+          streaming.slice(0, 5).map((p) => (
+            <span
+              key={p.provider_id}
+              className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400"
+            >
+              {p.logo_url && (
+                <Image
+                  src={p.logo_url}
+                  alt={p.name}
+                  width={14}
+                  height={14}
+                  className="rounded-sm"
+                />
+              )}
+              {p.name}
+            </span>
+          ))}
+
+        {streaming.length === 0 && rent.length > 0 &&
+          rent.slice(0, 4).map((p) => (
+            <span
+              key={p.provider_id}
+              className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+            >
+              {p.logo_url && (
+                <Image
+                  src={p.logo_url}
+                  alt={p.name}
+                  width={14}
+                  height={14}
+                  className="rounded-sm"
+                />
+              )}
+              {p.name}
+            </span>
+          ))}
+
+        {/* Platform links (Spotify, Google Books) */}
+        {platformLinks.map((link) => (
+          <a
+            key={link.label}
+            href={link.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-400 dark:hover:bg-indigo-900/50"
+          >
+            <span>{link.icon}</span>
+            {link.label}
+          </a>
+        ))}
+      </div>
+
+      {wp?.link && (
+        <a
+          href={wp.link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-1 inline-block text-[10px] text-zinc-400 underline decoration-zinc-300 hover:text-zinc-600 dark:decoration-zinc-600 dark:hover:text-zinc-300"
+        >
+          View all options — JustWatch
+        </a>
+      )}
+    </div>
+  );
+}
+
 interface RecommendationItem {
   id: string;
   status: string;
   reason: string | null;
   confidence?: string;
   feedback?: string | null;
-  item: {
-    id: string;
-    title: string;
-    creator: string | null;
-    description: string | null;
-    genres: string[];
-    year: number | null;
-    image_url: string | null;
-    category: string;
-    metadata: Record<string, unknown> | null;
-  };
+  item: ItemInfo;
 }
+
+const SIMILAR_CATEGORIES = [
+  { value: 'movies', label: 'Movies' },
+  { value: 'tv_shows', label: 'TV Shows' },
+  { value: 'fiction_books', label: 'Books' },
+  { value: 'music_artists', label: 'Music' },
+  { value: 'podcasts', label: 'Podcasts' },
+];
 
 interface RecommendationCardProps {
   recommendation: RecommendationItem;
   onAction: (id: string, status: string, score?: number) => Promise<void>;
+  onFindSimilar?: (item: ItemInfo, targetCategory?: string) => void;
 }
 
 export function RecommendationCard({
   recommendation,
   onAction,
+  onFindSimilar,
 }: RecommendationCardProps) {
   const [acting, setActing] = useState(false);
   const [hoveredStar, setHoveredStar] = useState(0);
   const [selectedStar, setSelectedStar] = useState(0);
   const [dismissed, setDismissed] = useState(false);
   const [actionTaken, setActionTaken] = useState<string | null>(null);
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
   const { item, reason, confidence } = recommendation;
 
@@ -171,83 +302,8 @@ export function RecommendationCard({
               </p>
             )}
 
-            {/* Streaming availability */}
-            {(() => {
-              const wp = item.metadata?.watch_providers as {
-                streaming?: { name: string; logo_url: string | null; provider_id: number }[];
-                rent?: { name: string; logo_url: string | null; provider_id: number }[];
-                link?: string | null;
-              } | null;
-              if (!wp) return null;
-
-              const streaming = wp.streaming || [];
-              const rent = wp.rent || [];
-              const hasProviders = streaming.length > 0 || rent.length > 0;
-              if (!hasProviders) return null;
-
-              return (
-                <div className="mt-3">
-                  {streaming.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
-                        Stream on
-                      </span>
-                      {streaming.slice(0, 5).map((p) => (
-                        <span
-                          key={p.provider_id}
-                          className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400"
-                        >
-                          {p.logo_url && (
-                            <Image
-                              src={p.logo_url}
-                              alt={p.name}
-                              width={14}
-                              height={14}
-                              className="rounded-sm"
-                            />
-                          )}
-                          {p.name}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  {streaming.length === 0 && rent.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
-                        Rent on
-                      </span>
-                      {rent.slice(0, 4).map((p) => (
-                        <span
-                          key={p.provider_id}
-                          className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
-                        >
-                          {p.logo_url && (
-                            <Image
-                              src={p.logo_url}
-                              alt={p.name}
-                              width={14}
-                              height={14}
-                              className="rounded-sm"
-                            />
-                          )}
-                          {p.name}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  {wp.link && (
-                    <a
-                      href={wp.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-1 inline-block text-[10px] text-zinc-400 underline decoration-zinc-300 hover:text-zinc-600 dark:decoration-zinc-600 dark:hover:text-zinc-300"
-                    >
-                      View all options — JustWatch
-                    </a>
-                  )}
-                </div>
-              );
-            })()}
+            {/* Where to watch / listen / read */}
+            <WhereToFind item={item} />
           </div>
 
           {/* Actions */}
@@ -301,6 +357,36 @@ export function RecommendationCard({
               >
                 Dismiss
               </button>
+              {onFindSimilar && (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowCategoryPicker(!showCategoryPicker)}
+                    className="rounded-lg px-3 py-1 text-xs text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700 dark:hover:bg-zinc-800"
+                  >
+                    More like this
+                  </button>
+                  {showCategoryPicker && (
+                    <div className="absolute bottom-full left-0 z-10 mb-1 flex flex-wrap gap-1 rounded-lg border border-zinc-200 bg-white p-2 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+                      {SIMILAR_CATEGORIES.map((cat) => (
+                        <button
+                          key={cat.value}
+                          onClick={() => {
+                            setShowCategoryPicker(false);
+                            onFindSimilar(item, cat.value);
+                          }}
+                          className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                            cat.value === item.category
+                              ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400'
+                              : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+                          }`}
+                        >
+                          {cat.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
           </div>
