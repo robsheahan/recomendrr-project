@@ -43,8 +43,19 @@ export async function GET(
         !localExternalIds.has(r.external_id)
     );
 
-    const combined = [...localResults, ...newApiResults].slice(0, 10);
-    return NextResponse.json({ results: combined });
+    const combined = [...localResults, ...newApiResults];
+
+    // Sort by relevance: exact match > starts with > contains
+    const queryLower = query.toLowerCase();
+    combined.sort((a, b) => {
+      const aTitle = a.title.toLowerCase();
+      const bTitle = b.title.toLowerCase();
+      const aExact = aTitle === queryLower ? 0 : aTitle.startsWith(queryLower) ? 1 : 2;
+      const bExact = bTitle === queryLower ? 0 : bTitle.startsWith(queryLower) ? 1 : 2;
+      return aExact - bExact;
+    });
+
+    return NextResponse.json({ results: combined.slice(0, 10) });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('Search error:', category, query, message);

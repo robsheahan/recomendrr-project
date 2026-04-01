@@ -44,6 +44,17 @@ export async function searchLocalItems(
 
   if (error || !data) return [];
 
+  const queryLower = query.toLowerCase();
+
+  // Sort by relevance: exact match > starts with > contains
+  data.sort((a, b) => {
+    const aTitle = a.title.toLowerCase();
+    const bTitle = b.title.toLowerCase();
+    const aExact = aTitle === queryLower ? 0 : aTitle.startsWith(queryLower) ? 1 : 2;
+    const bExact = bTitle === queryLower ? 0 : bTitle.startsWith(queryLower) ? 1 : 2;
+    return aExact - bExact;
+  });
+
   return data.map((item) => {
     const metadata = (item.metadata || {}) as Record<string, unknown>;
     return {
