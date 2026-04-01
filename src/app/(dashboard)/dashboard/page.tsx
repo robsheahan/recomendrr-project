@@ -61,7 +61,7 @@ export default async function DashboardPage({
       {/* Welcome header */}
       <div className="rounded-2xl border border-zinc-200 bg-gradient-to-br from-zinc-900 to-zinc-800 p-6 dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-950">
         <h2 className="text-lg font-semibold text-white">
-          Hey {displayName}
+          Hey, {displayName}
         </h2>
         <p className="mt-1 text-sm text-zinc-400">
           Ready to discover something new?
