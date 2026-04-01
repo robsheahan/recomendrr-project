@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { Suspense } from 'react';
 import { RecommendationGenerator } from '@/components/RecommendationGenerator';
 import Link from 'next/link';
 
@@ -97,7 +98,9 @@ export default async function DashboardPage({
 
       {/* Recommendation generator */}
       {hasCategories ? (
-        <RecommendationGenerator />
+        <Suspense fallback={<div className="py-8 text-center text-sm text-zinc-500">Loading...</div>}>
+          <RecommendationGenerator />
+        </Suspense>
       ) : (
         <div className="rounded-xl border border-zinc-200 bg-white p-8 text-center dark:border-zinc-800 dark:bg-zinc-900">
           <p className="text-sm text-zinc-500">
