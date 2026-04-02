@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { CATEGORY_LABELS } from '@/lib/constants';
 import { MediaCategory } from '@/types/database';
@@ -23,50 +23,78 @@ interface RatingItem {
   };
 }
 
+// Map legacy DB categories to display categories
+const CATEGORY_MERGE: Record<string, string> = {
+  fiction_books: 'books',
+  nonfiction_books: 'books',
+  documentaries: 'movies',
+};
+
 const FILTER_CATEGORIES: (MediaCategory | 'all')[] = [
   'all',
-  'movies',
-  'tv_shows',
   'books',
-  'podcasts',
+  'movies',
   'music_artists',
+  'podcasts',
+  'tv_shows',
 ];
 
 export default function RatingsPage() {
   const router = useRouter();
-  const [ratings, setRatings] = useState<RatingItem[]>([]);
+  const [allRatings, setAllRatings] = useState<RatingItem[]>([]);
   const [filter, setFilter] = useState<MediaCategory | 'all'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
-  const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
 
-  // Fetch counts for all categories on mount
   useEffect(() => {
+    setLoading(true);
     fetch('/api/ratings')
       .then((res) => res.json())
       .then((data) => {
-        const counts: Record<string, number> = {};
-        let total = 0;
-        for (const r of data.ratings || []) {
-          if (r.item?.category) {
-            counts[r.item.category] = (counts[r.item.category] || 0) + 1;
-            total++;
-          }
-        }
-        counts['all'] = total;
-        setCategoryCounts(counts);
+        setAllRatings(data.ratings || []);
+        setLoading(false);
       });
   }, []);
 
-  useEffect(() => {
-    const params = filter !== 'all' ? `?category=${filter}` : '';
-    setLoading(true);
-    fetch(`/api/ratings${params}`)
-      .then((res) => res.json())
-      .then((data) => {
-        setRatings(data.ratings || []);
-        setLoading(false);
+  // Compute category counts with merged categories
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    let total = 0;
+    for (const r of allRatings) {
+      if (r.item?.category) {
+        const merged = CATEGORY_MERGE[r.item.category] || r.item.category;
+        counts[merged] = (counts[merged] || 0) + 1;
+        total++;
+      }
+    }
+    counts['all'] = total;
+    return counts;
+  }, [allRatings]);
+
+  // Filter and search ratings
+  const filteredRatings = useMemo(() => {
+    let results = allRatings;
+
+    // Category filter
+    if (filter !== 'all') {
+      results = results.filter((r) => {
+        const merged = CATEGORY_MERGE[r.item.category] || r.item.category;
+        return merged === filter;
       });
-  }, [filter]);
+    }
+
+    // Search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      results = results.filter(
+        (r) =>
+          r.item.title.toLowerCase().includes(q) ||
+          (r.item.creator && r.item.creator.toLowerCase().includes(q))
+      );
+    }
+
+    return results;
+  }, [allRatings, filter, searchQuery]);
 
   function renderStars(score: number) {
     return Array.from({ length: 5 }, (_, i) => (
@@ -121,18 +149,31 @@ export default function RatingsPage() {
         })}
       </div>
 
+      {/* Search ratings */}
+      {allRatings.length > 0 && (
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search your ratings..."
+          className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+        />
+      )}
+
       {/* Ratings list */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <p className="text-sm text-zinc-500">Loading...</p>
         </div>
-      ) : ratings.length === 0 ? (
+      ) : filteredRatings.length === 0 ? (
         <div className="rounded-lg border border-zinc-200 bg-white p-8 text-center dark:border-zinc-800 dark:bg-zinc-900">
-          <p className="text-sm text-zinc-500">No ratings yet.</p>
+          <p className="text-sm text-zinc-500">
+            {searchQuery ? 'No ratings match your search.' : 'No ratings yet.'}
+          </p>
         </div>
       ) : (
         <div className="divide-y divide-zinc-100 overflow-hidden rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
-          {ratings.map((rating) => (
+          {filteredRatings.map((rating) => (
             <div key={rating.id} className="flex items-center gap-4 p-4">
               {rating.item.image_url ? (
                 <div className="relative h-16 w-11 shrink-0 overflow-hidden rounded">
@@ -168,10 +209,11 @@ export default function RatingsPage() {
                 </div>
                 <button
                   onClick={() => {
+                    const merged = CATEGORY_MERGE[rating.item.category] || rating.item.category;
                     const params = new URLSearchParams({
                       seedTitle: rating.item.title,
                       seedCategory: rating.item.category,
-                      targetCategory: rating.item.category,
+                      targetCategory: merged,
                     });
                     router.push(`/dashboard?${params.toString()}`);
                   }}
