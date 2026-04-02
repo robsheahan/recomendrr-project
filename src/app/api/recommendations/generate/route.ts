@@ -538,18 +538,17 @@ export async function POST(request: NextRequest) {
         }
 
         if (needsUpdate) {
-          supabase
+          await supabase
             .from('items')
             .update({ metadata: metadataUpdate })
-            .eq('id', itemId)
-            .then(() => {});
+            .eq('id', itemId);
         }
       } else if (category === 'fiction_books' || category === 'nonfiction_books') {
         qualityScore = match.rating || 0;
         if (existingMetadata.google_rating) {
           qualityScore = existingMetadata.google_rating as number;
         } else if (match.rating > 0) {
-          supabase
+          await supabase
             .from('items')
             .update({
               metadata: {
@@ -558,14 +557,13 @@ export async function POST(request: NextRequest) {
                 google_vote_count: match.vote_count,
               },
             })
-            .eq('id', itemId)
-            .then(() => {});
+            .eq('id', itemId);
         }
       } else if (category === 'music_artists') {
         const popularity = (match.metadata as Record<string, unknown>)?.popularity as number || 0;
         qualityScore = popularity / 10;
         if (!existingMetadata.spotify_popularity && popularity > 0) {
-          supabase
+          await supabase
             .from('items')
             .update({
               metadata: {
@@ -573,8 +571,7 @@ export async function POST(request: NextRequest) {
                 spotify_popularity: popularity,
               },
             })
-            .eq('id', itemId)
-            .then(() => {});
+            .eq('id', itemId);
         } else if (existingMetadata.spotify_popularity) {
           qualityScore = (existingMetadata.spotify_popularity as number) / 10;
         }
