@@ -215,6 +215,9 @@ export default function RatingsPage() {
                       seedCategory: rating.item.category,
                       targetCategory: merged,
                     });
+                    if (rating.item.creator) params.set('seedCreator', rating.item.creator);
+                    if (rating.item.genres?.length) params.set('seedGenres', rating.item.genres.join(','));
+                    if (rating.item.year) params.set('seedYear', String(rating.item.year));
                     router.push(`/dashboard?${params.toString()}`);
                   }}
                   className="rounded-lg px-2.5 py-1 text-[11px] text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"

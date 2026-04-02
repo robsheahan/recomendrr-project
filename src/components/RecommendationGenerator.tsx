@@ -350,6 +350,9 @@ export function RecommendationGenerator() {
       const seed: SeedItem = {
         title: seedTitle,
         category: seedCategory,
+        creator: searchParams.get('seedCreator') || undefined,
+        genres: searchParams.get('seedGenres')?.split(',').filter(Boolean) || undefined,
+        year: searchParams.get('seedYear') ? Number(searchParams.get('seedYear')) : undefined,
       };
       const target = (targetCategory || seedCategory) as MediaCategory;
 
@@ -477,25 +480,6 @@ export function RecommendationGenerator() {
         </button>
       )}
 
-      {/* Error */}
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-400">
-          {error}
-        </div>
-      )}
-
-      {/* Loading state */}
-      {loading && !generatingFingerprint && (
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-900 dark:border-zinc-700 dark:border-t-zinc-50" />
-            <p className="text-sm text-zinc-500">
-              Finding the perfect recommendations...
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* Seed mode banner + breadcrumbs */}
       {seedItem && (
         <div className="space-y-2">
@@ -537,6 +521,27 @@ export function RecommendationGenerator() {
             >
               Clear
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Error */}
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-400">
+          {error}
+        </div>
+      )}
+
+      {/* Loading state */}
+      {loading && !generatingFingerprint && (
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-900 dark:border-zinc-700 dark:border-t-zinc-50" />
+            <p className="text-sm text-zinc-500">
+              {seedItem
+                ? `Finding items similar to "${seedItem.title}"...`
+                : 'Finding the perfect recommendations...'}
+            </p>
           </div>
         </div>
       )}

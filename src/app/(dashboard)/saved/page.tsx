@@ -145,6 +145,9 @@ export default function SavedPage() {
                       seedCategory: itemInfo.category,
                       targetCategory: targetCategory || itemInfo.category,
                     });
+                    if (itemInfo.creator) params.set('seedCreator', itemInfo.creator);
+                    if (itemInfo.genres?.length) params.set('seedGenres', itemInfo.genres.join(','));
+                    if (itemInfo.year) params.set('seedYear', String(itemInfo.year));
                     router.push(`/dashboard?${params.toString()}`);
                   }}
                 />

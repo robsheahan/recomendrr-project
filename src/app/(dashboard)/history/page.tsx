@@ -127,6 +127,9 @@ export default function HistoryPage() {
                           seedCategory: item.item.category,
                           targetCategory: item.item.category,
                         });
+                        if (item.item.creator) params.set('seedCreator', item.item.creator);
+                        if (item.item.genres?.length) params.set('seedGenres', item.item.genres.join(','));
+                        if (item.item.year) params.set('seedYear', String(item.item.year));
                         router.push(`/dashboard?${params.toString()}`);
                       }}
                       className="rounded-lg px-2 py-0.5 text-[11px] text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
