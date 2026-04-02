@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { CATEGORY_LABELS } from '@/lib/constants';
 import { MediaCategory } from '@/types/database';
@@ -109,6 +109,7 @@ export function RecommendationGenerator() {
   const [generatingFingerprint, setGeneratingFingerprint] = useState(false);
   const [seedItem, setSeedItem] = useState<SeedItem | null>(null);
   const [drilldownStack, setDrilldownStack] = useState<DrilldownEntry[]>([]);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     fetch('/api/onboarding/progress')
@@ -165,8 +166,22 @@ export function RecommendationGenerator() {
     }
   }
 
+  function handleCancel() {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setLoading(false);
+    setGeneratingFingerprint(false);
+  }
+
   async function handleGenerate() {
     if (!selectedCategory) return;
+
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
     setError(null);
     setRecommendations([]);
@@ -193,6 +208,7 @@ export function RecommendationGenerator() {
           genre: selectedGenre || null,
           intent: intent || null,
         }),
+        signal: controller.signal,
       });
 
       const data = await res.json();
@@ -206,6 +222,7 @@ export function RecommendationGenerator() {
       setRequestsLimit(data.requestsLimit);
       setSessionId(data.sessionId);
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
       setLoading(false);
@@ -214,6 +231,11 @@ export function RecommendationGenerator() {
 
   async function handleRefine() {
     if (!refinementText.trim() || !sessionId || !selectedCategory) return;
+
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
     setError(null);
 
@@ -227,6 +249,7 @@ export function RecommendationGenerator() {
           refinement: refinementText,
           sessionId,
         }),
+        signal: controller.signal,
       });
 
       const data = await res.json();
@@ -240,6 +263,7 @@ export function RecommendationGenerator() {
       setRequestsLimit(data.requestsLimit);
       setRefinementText('');
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
       setLoading(false);
@@ -260,6 +284,10 @@ export function RecommendationGenerator() {
   }
 
   const generateSimilar = useCallback(async (seed: SeedItem, targetCategory: string) => {
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
     setError(null);
     setRecommendations([]);
@@ -276,6 +304,7 @@ export function RecommendationGenerator() {
           category: targetCategory,
           seedItem: seed,
         }),
+        signal: controller.signal,
       });
 
       const data = await res.json();
@@ -289,6 +318,7 @@ export function RecommendationGenerator() {
       setRequestsLimit(data.requestsLimit);
       setSessionId(data.sessionId);
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
       setLoading(false);
@@ -542,6 +572,12 @@ export function RecommendationGenerator() {
                 ? `Finding items similar to "${seedItem.title}"...`
                 : 'Finding the perfect recommendations...'}
             </p>
+            <button
+              onClick={handleCancel}
+              className="mt-3 rounded-lg px-4 py-1.5 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
