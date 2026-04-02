@@ -159,7 +159,7 @@ export function formatTasteProfileForLLM(profile: TasteProfile): string {
   // --- Seed item (highest priority — reframes the entire request) ---
   if (profile.seedItem) {
     const seedLabel = categoryLabels[profile.seedItem.category] || profile.seedItem.category;
-    lines.push('SEED ITEM (find recommendations similar to this):');
+    lines.push('SEED ITEM (find recommendations similar to this — THIS IS YOUR PRIMARY TASK):');
     lines.push(`- Title: ${profile.seedItem.title}`);
     lines.push(`- Category: ${seedLabel}`);
     if (profile.seedItem.creator) lines.push(`- Creator: ${profile.seedItem.creator}`);
@@ -167,11 +167,20 @@ export function formatTasteProfileForLLM(profile: TasteProfile): string {
     if (profile.seedItem.year) lines.push(`- Year: ${profile.seedItem.year}`);
     if (profile.seedItem.description) lines.push(`- Description: ${profile.seedItem.description}`);
     lines.push('');
-    lines.push('The user loved this item and wants more like it. Identify the SPECIFIC qualities that make this item appealing — its themes, tone, pacing, emotional register, narrative approach — and find items that share those deep qualities. Do NOT just match on surface genre.');
+    lines.push('Use your knowledge of this item to identify what makes it distinctive. Consider ALL of these dimensions:');
+    lines.push('1. THEMES: What are the core themes? (e.g., redemption, found family, existential dread, coming-of-age)');
+    lines.push('2. TONE & MOOD: Is it dark, whimsical, bittersweet, intense, contemplative, suspenseful?');
+    lines.push('3. NARRATIVE STYLE: Is it fast-paced, slow-burn, non-linear, dialogue-heavy, action-driven?');
+    lines.push('4. EMOTIONAL CORE: What emotional experience does it deliver? (e.g., awe, heartbreak, catharsis, tension)');
+    lines.push('5. CREATOR STYLE: What is distinctive about the creator\'s approach?');
+    lines.push('6. WORLD/SETTING: What makes the setting or world distinctive?');
+    lines.push('');
+    lines.push('Find items that match on at least 3-4 of these dimensions. Surface-level genre matching alone (e.g., "both are sci-fi") is NOT sufficient — the items must FEEL similar to experience.');
+    lines.push('In your explanation for each recommendation, specifically name which dimensions connect it to the seed item.');
     if (profile.seedItem.category !== profile.category) {
-      lines.push(`CROSS-CATEGORY: The seed item is a ${seedLabel} but the user wants ${label}. Find items in the target category that capture the same essence — the themes, emotional resonance, and narrative qualities — not just the same genre label.`);
+      lines.push(`CROSS-CATEGORY: The seed item is a ${seedLabel} but the user wants ${label}. Translate the seed's qualities into the target medium. For example: a slow-burn psychological thriller film → a literary thriller novel with similar tension and moral ambiguity.`);
     }
-    lines.push('Do NOT recommend the seed item itself or its direct adaptation/source material.');
+    lines.push('Do NOT recommend the seed item itself, its direct sequels/prequels, or its direct adaptation/source material (e.g., do not recommend the LOTR books if the seed is the LOTR film).');
     lines.push('');
   }
 

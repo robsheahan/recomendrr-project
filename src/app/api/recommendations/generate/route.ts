@@ -40,6 +40,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Category is required' }, { status: 400 });
   }
 
+  // Enrich seed item with DB data if we only have basic info (e.g., from URL params)
+  let enrichedSeedItem = seedItem || null;
+  if (seedItem?.title && !seedItem.description) {
+    const { data: seedMatch } = await supabase
+      .from('items')
+      .select('title, creator, description, genres, year, category')
+      .ilike('title', seedItem.title)
+      .eq('category', seedItem.category)
+      .limit(1)
+      .single();
+
+    if (seedMatch) {
+      enrichedSeedItem = {
+        ...seedItem,
+        creator: seedItem.creator || seedMatch.creator || undefined,
+        description: seedMatch.description || undefined,
+        genres: seedItem.genres?.length ? seedItem.genres : (seedMatch.genres || undefined),
+        year: seedItem.year || seedMatch.year || undefined,
+      };
+    }
+  }
+
   // --- Phase 1: Parallel initial data fetch ---
   const [
     profileResult,
@@ -148,7 +170,8 @@ export async function POST(request: NextRequest) {
     .map((r) => r.item?.title)
     .filter(Boolean);
 
-  const allExcluded = [...new Set([...previouslyRecommendedTitles, ...ratedTitles])];
+  const seedExclusion = enrichedSeedItem?.title ? [enrichedSeedItem.title] : [];
+  const allExcluded = [...new Set([...previouslyRecommendedTitles, ...ratedTitles, ...seedExclusion])];
 
   // Conversation history (from already-fetched data)
   let conversationHistory: { role: 'user' | 'assistant'; content: string }[] = [];
@@ -347,7 +370,7 @@ export async function POST(request: NextRequest) {
     collaborativeSection,
     userTagWeights,
     categoryFingerprintSection,
-    seedItem || null,
+    enrichedSeedItem,
   );
 
   // --- Generate recommendations ---
@@ -421,6 +444,7 @@ export async function POST(request: NextRequest) {
     itemId: string;
     match: Awaited<ReturnType<typeof searchByCategory>>[0];
     qualityScore: number;
+    resolvedMetadata: Record<string, unknown>;
   }
 
   const candidateResults = await Promise.allSettled(
@@ -487,6 +511,7 @@ export async function POST(request: NextRequest) {
 
       // Fetch quality scores + watch providers
       let qualityScore = match.rating || 5;
+      let resolvedMetadata: Record<string, unknown> = { ...existingMetadata };
 
       if (isTmdbCategory) {
         // Fetch OMDB scores + watch providers in parallel
@@ -537,6 +562,7 @@ export async function POST(request: NextRequest) {
           needsUpdate = true;
         }
 
+        resolvedMetadata = metadataUpdate;
         if (needsUpdate) {
           await supabase
             .from('items')
@@ -548,29 +574,20 @@ export async function POST(request: NextRequest) {
         if (existingMetadata.google_rating) {
           qualityScore = existingMetadata.google_rating as number;
         } else if (match.rating > 0) {
+          resolvedMetadata = { ...existingMetadata, google_rating: match.rating, google_vote_count: match.vote_count };
           await supabase
             .from('items')
-            .update({
-              metadata: {
-                ...existingMetadata,
-                google_rating: match.rating,
-                google_vote_count: match.vote_count,
-              },
-            })
+            .update({ metadata: resolvedMetadata })
             .eq('id', itemId);
         }
       } else if (category === 'music_artists') {
         const popularity = (match.metadata as Record<string, unknown>)?.popularity as number || 0;
         qualityScore = popularity / 10;
         if (!existingMetadata.spotify_popularity && popularity > 0) {
+          resolvedMetadata = { ...existingMetadata, spotify_popularity: popularity };
           await supabase
             .from('items')
-            .update({
-              metadata: {
-                ...existingMetadata,
-                spotify_popularity: popularity,
-              },
-            })
+            .update({ metadata: resolvedMetadata })
             .eq('id', itemId);
         } else if (existingMetadata.spotify_popularity) {
           qualityScore = (existingMetadata.spotify_popularity as number) / 10;
@@ -579,7 +596,7 @@ export async function POST(request: NextRequest) {
         qualityScore = 7;
       }
 
-      return { rec, itemId, match, qualityScore };
+      return { rec, itemId, match, qualityScore, resolvedMetadata };
     })
   );
 
@@ -615,7 +632,7 @@ export async function POST(request: NextRequest) {
 
   const top3 = candidates.slice(0, 5);
   const insertResults = await Promise.all(
-    top3.map(async ({ rec, itemId, qualityScore }) => {
+    top3.map(async ({ rec, itemId, match, qualityScore, resolvedMetadata }) => {
       const { data: recommendation } = await supabase
         .from('recommendations')
         .insert({
@@ -625,13 +642,20 @@ export async function POST(request: NextRequest) {
           reason: rec.reason,
           model_used: llmResponse.model,
           batch_id: batchId,
-          intent: seedItem ? `Similar to: ${seedItem.title}` : (intent || refinement || null),
+          intent: enrichedSeedItem ? `Similar to: ${enrichedSeedItem.title}` : (intent || refinement || null),
           confidence: rec.confidence,
         })
         .select('*, item:items(*)')
         .single();
 
       if (recommendation) {
+        // Merge resolved metadata into the item so watch providers etc. are always present
+        const item = recommendation.item as Record<string, unknown>;
+        if (item) {
+          item.metadata = resolvedMetadata;
+          item.external_id = item.external_id || match.external_id;
+          item.external_source = item.external_source || match.external_source;
+        }
         return {
           ...recommendation,
           confidence: rec.confidence,
