@@ -385,7 +385,7 @@ export function formatTasteProfileForLLM(profile: TasteProfile): string {
   // --- Request ---
   const genreClause = profile.genre ? ` in the ${profile.genre} genre` : '';
   if (profile.seedItem) {
-    const count = 10;
+    const count = 15;
     lines.push(`Recommend ${count} ${label}${genreClause} similar to "${profile.seedItem.title}". Provide exactly ${count} different recommendations. Each must share deep thematic or tonal qualities with the seed item — not just surface-level genre matching. Still filter through this user's taste profile — don't recommend things they would dislike even if similar to the seed.`);
   } else {
     lines.push(`Recommend 15 ${label}${genreClause} for this user. Provide exactly 15 different recommendations. Ensure variety — mix different sub-genres, eras, and styles.`);
